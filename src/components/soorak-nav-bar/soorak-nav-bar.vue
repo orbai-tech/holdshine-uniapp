@@ -15,13 +15,23 @@ const props = withDefaults(
 const session = useSessionStore()
 const cart = useCartStore()
 
+// sticky 在自定义组件 + flex 下可能不占文档流，子页内容会顶进状态栏
 const statusBarPx = uni.getSystemInfoSync().statusBarHeight || 0
+const innerPx = uni.upx2px(88)
+const wrapStyle = computed(() => ({
+  height: `${statusBarPx + innerPx}px`,
+}))
 const navStyle = computed(() => ({
   paddingTop: `${statusBarPx}px`,
 }))
 
 function onBack() {
-  if (props.showBack) session.closeProduct()
+  // product sheet 优先关层；子页栈返回用 navigateBack
+  if (session.productOpen) {
+    session.closeProduct()
+    return
+  }
+  if (props.showBack) uni.navigateBack()
 }
 
 function openCart() {
@@ -30,17 +40,19 @@ function openCart() {
 </script>
 
 <template>
-  <view class="mp-navbar" :style="navStyle">
-    <view class="mp-navbar__inner">
-      <view class="mp-navbar__left">
-        <view v-if="showBack" class="mp-navbar__back" @click="onBack">‹</view>
-        <text v-else class="mp-navbar__brand">元气善筑</text>
-      </view>
-      <text class="mp-navbar__title">{{ title }}</text>
-      <view class="mp-navbar__right">
-        <view v-if="showBag" class="mp-navbar__bag" @click="openCart">
-          <text>袋</text>
-          <text v-if="cart.cartCount > 0" class="mp-navbar__badge">{{ cart.cartCount }}</text>
+  <view class="mp-navbar-wrap" :style="wrapStyle">
+    <view class="mp-navbar" :style="navStyle">
+      <view class="mp-navbar__inner">
+        <view class="mp-navbar__left">
+          <view v-if="showBack" class="mp-navbar__back" @click="onBack">‹</view>
+          <text v-else class="mp-navbar__brand">元气善筑</text>
+        </view>
+        <text class="mp-navbar__title">{{ title }}</text>
+        <view class="mp-navbar__right">
+          <view v-if="showBag" class="mp-navbar__bag" @click="openCart">
+            <text>袋</text>
+            <text v-if="cart.cartCount > 0" class="mp-navbar__badge">{{ cart.cartCount }}</text>
+          </view>
         </view>
       </view>
     </view>
@@ -48,10 +60,15 @@ function openCart() {
 </template>
 
 <style lang="scss" scoped>
-.mp-navbar {
-  position: sticky;
-  top: 0;
+.mp-navbar-wrap {
   flex-shrink: 0;
+}
+
+.mp-navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
   background: rgba(247, 244, 238, 0.94);
   border-bottom: 1rpx solid $mp-border;
   z-index: 20;

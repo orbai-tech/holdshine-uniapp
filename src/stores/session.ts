@@ -178,8 +178,14 @@ export const useSessionStore = defineStore('session', () => {
     goTab('/pages/menu/index')
   }
 
-  /** TODO(DEV-013) 选店列表界面未做，点击不得误跳点单 Tab。 */
-  function openStorePicker() {}
+  function openStorePicker() {
+    productId.value = null
+    cartOpen.value = false
+    uni.navigateTo({
+      url: '/pages/stores/index',
+      fail() {},
+    })
+  }
 
   return {
     ritualFilter,

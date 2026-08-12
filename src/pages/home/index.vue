@@ -54,7 +54,10 @@ onShow(() => {
       <view class="home-store">
         <view>
           <text class="home-store__name">{{ catalog.brand.store }}</text>
-          <text class="home-store__meta">{{ catalog.brand.hours }} · {{ catalog.brand.distance }} · 营业中</text>
+          <text class="home-store__meta">
+            {{ catalog.brand.hours }} · {{ catalog.brand.distance }} ·
+            {{ catalog.currentStore?.status === 1 ? '营业中' : '休息中' }}
+          </text>
         </view>
         <view class="home-store__switch" @click="session.openStorePicker()">切换</view>
       </view>

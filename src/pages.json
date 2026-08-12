@@ -19,6 +19,14 @@
     {
       "path": "pages/mine/index",
       "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
+    },
+    {
+      "path": "pages/coupons/index",
+      "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
+    },
+    {
+      "path": "pages/stores/index",
+      "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
     }
   ],
   "globalStyle": {

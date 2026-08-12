@@ -82,6 +82,10 @@ function openTiersSheet() {
   tiersSheetOpen.value = true
 }
 
+function onOpenCoupons() {
+  uni.navigateTo({ url: '/pages/coupons/index' })
+}
+
 function tierThresholdText(tier: MemberTier) {
   return tier.threshold === 0 ? '注册即享' : `成长值 ${tier.threshold}`
 }
@@ -174,9 +178,9 @@ function tierThresholdText(tier: MemberTier) {
           <text>购物袋</text>
           <text class="mine-cell__em">›</text>
         </view>
-        <view class="mine-cell">
-          <text>卡券中心</text>
-          <text class="mine-cell__em">演示 ›</text>
+        <view class="mine-cell" @click="onOpenCoupons">
+          <text>礼遇匣</text>
+          <text class="mine-cell__em">›</text>
         </view>
         <!-- #ifdef MP-WEIXIN -->
         <button class="mine-cell mine-cell--btn" open-type="contact">
