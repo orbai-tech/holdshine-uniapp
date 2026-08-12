@@ -1,0 +1,79 @@
+{
+  "pages": [
+    {
+      "path": "pages/home/index",
+      "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
+    },
+    {
+      "path": "pages/menu/index",
+      "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
+    },
+    {
+      "path": "pages/orders/index",
+      "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
+    },
+    {
+      "path": "pages/member/index",
+      "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
+    },
+    {
+      "path": "pages/mine/index",
+      "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "素乐",
+    "navigationBarBackgroundColor": "#f7f4ee",
+    "backgroundColor": "#f7f4ee",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#948c82",
+    "selectedColor": "#33473d",
+    "borderStyle": "white",
+    "backgroundColor": "#ffffff",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "首页",
+        "iconPath": "static/tab/dot-off.png",
+        "selectedIconPath": "static/tab/dot-on.png"
+      },
+      {
+        "pagePath": "pages/menu/index",
+        "text": "点单",
+        "iconPath": "static/tab/dot-off.png",
+        "selectedIconPath": "static/tab/dot-on.png"
+      },
+      {
+        "pagePath": "pages/orders/index",
+        "text": "订单",
+        "iconPath": "static/tab/dot-off.png",
+        "selectedIconPath": "static/tab/dot-on.png"
+      },
+      {
+        "pagePath": "pages/member/index",
+        "text": "会员",
+        "iconPath": "static/tab/dot-off.png",
+        "selectedIconPath": "static/tab/dot-on.png"
+      },
+      {
+        "pagePath": "pages/mine/index",
+        "text": "我的",
+        "iconPath": "static/tab/dot-off.png",
+        "selectedIconPath": "static/tab/dot-on.png"
+      }
+    ]
+  },
+  "condition": {
+    "current": 0,
+    "list": [
+      { "name": "首页", "path": "pages/home/index" },
+      { "name": "点单", "path": "pages/menu/index" },
+      { "name": "订单", "path": "pages/orders/index" },
+      { "name": "会员", "path": "pages/member/index" },
+      { "name": "我的", "path": "pages/mine/index" }
+    ]
+  }
+}

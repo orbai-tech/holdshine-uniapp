@@ -1,0 +1,85 @@
+page {
+  min-height: 100%;
+  color: #14110f;
+  background: #f7f4ee;
+  font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  font-size: 28rpx;
+  line-height: 1.6;
+}
+
+view, text, button, input, textarea, picker, scroll-view, image {
+  box-sizing: border-box;
+}
+
+button {
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  background: none;
+  line-height: inherit;
+}
+
+button::after {
+  border: none;
+}
+
+.t-label {
+  font-size: 20rpx;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  color: #948c82;
+}
+
+.t-hero {
+  font-family: "Songti SC", "Noto Serif SC", serif;
+  font-size: 60rpx;
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: 0.04em;
+}
+
+.t-title {
+  font-family: "Songti SC", "Noto Serif SC", serif;
+  font-size: 44rpx;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.t-section {
+  font-family: "Songti SC", "Noto Serif SC", serif;
+  font-size: 36rpx;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.t-product {
+  font-size: 32rpx;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.t-caption {
+  font-size: 24rpx;
+  color: #6b635a;
+  line-height: 1.5;
+}
+
+.page-pad {
+  padding: 24rpx 32rpx 16rpx;
+}
+
+.mp-empty {
+  padding: 96rpx 48rpx;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.mp-empty__title {
+  font-family: "Songti SC", "Noto Serif SC", serif;
+  font-size: 44rpx;
+  font-weight: 500;
+}

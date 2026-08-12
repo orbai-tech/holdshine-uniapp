@@ -1,0 +1,42 @@
+{
+  "name": "素乐 SOORAK",
+  "appid": "wx9b8d746e5c4780ef",
+  "description": "素乐 SOORAK 小程序体验版（UniApp 迁移）",
+  "versionName": "1.0.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "app-plus": {
+    "usingComponents": true,
+    "nvueStyleCompiler": "uni-app",
+    "compilerVersion": 3,
+    "splashscreen": {
+      "alwaysShowBeforeRender": true,
+      "waiting": true,
+      "autoclose": true,
+      "delay": 0
+    },
+    "modules": {},
+    "distribute": { "android": {}, "ios": {}, "sdkConfigs": {} }
+  },
+  "h5": {
+    "title": "素乐 SOORAK",
+    "devServer": {
+      "host": "0.0.0.0",
+      "port": 5173,
+      "disableHostCheck": true
+    }
+  },
+  "mp-weixin": {
+    "appid": "wx9b8d746e5c4780ef",
+    "setting": { "urlCheck": false },
+    "usingComponents": true,
+    "requiredPrivateInfos": ["getLocation"],
+    "permission": {
+      "scope.userLocation": {
+        "desc": "用于自动选择距离你最近的门店"
+      }
+    }
+  },
+  "uniStatistics": { "enable": false },
+  "vueVersion": "3"
+}
