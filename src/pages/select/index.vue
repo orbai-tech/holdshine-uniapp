@@ -5,6 +5,7 @@ import SoorakChrome from '@/components/soorak-chrome/soorak-chrome.vue'
 import SoorakButton from '@/components/soorak-button/soorak-button.vue'
 import ProductCard from '@/pages/menu/components/product-card.vue'
 import { useCatalogStore } from '@/stores/catalog'
+import { useSessionStore } from '@/stores/session'
 import type { RitualId } from '@/common/types/catalog'
 
 type RetailChip = 'all' | 'gift' | 'nourish'
@@ -20,6 +21,7 @@ const list = computed(() => {
 })
 
 onShow(() => {
+  useSessionStore().hideNativeTabBar()
   void catalog.ensureLoaded()
 })
 
@@ -33,7 +35,6 @@ function ritualOf(id: RitualId) {
 </script>
 
 <template>
-  <!-- 原会员路由 = 选物陈列 -->
   <SoorakChrome title="选物">
     <view v-if="catalog.loading" class="mp-empty">
       <text class="t-caption">加载中</text>

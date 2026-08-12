@@ -134,6 +134,47 @@ export function addCartItem(openid, body) {
   return next
 }
 
+export function updateCartItem(openid, itemId, body) {
+  const id = Number(itemId)
+  if (!Number.isInteger(id) || id <= 0) {
+    throw Object.assign(new Error('缺少 item_id'), { code: 40000 })
+  }
+  const quantity = Number(body.quantity)
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    throw Object.assign(new Error('数量无效'), { code: 40000 })
+  }
+  for (const [key, cart] of carts.entries()) {
+    if (!key.startsWith(`${openid}:`)) continue
+    const index = cart.items.findIndex((item) => item.item_id === id)
+    if (index < 0) continue
+    const items = [...cart.items]
+    const current = { ...items[index], quantity }
+    current.line_amount = money((Number(current.unit_price) + Number(current.option_amount)) * quantity)
+    items[index] = current
+    const next = summarize(cart.store_id, items)
+    carts.set(key, next)
+    return next
+  }
+  throw Object.assign(new Error('购物车商品不存在'), { code: 40000 })
+}
+
+export function removeCartItem(openid, itemId) {
+  const id = Number(itemId)
+  if (!Number.isInteger(id) || id <= 0) {
+    throw Object.assign(new Error('缺少 item_id'), { code: 40000 })
+  }
+  for (const [key, cart] of carts.entries()) {
+    if (!key.startsWith(`${openid}:`)) continue
+    const index = cart.items.findIndex((item) => item.item_id === id)
+    if (index < 0) continue
+    const items = cart.items.filter((item) => item.item_id !== id)
+    const next = summarize(cart.store_id, items)
+    carts.set(key, next)
+    return next
+  }
+  throw Object.assign(new Error('购物车商品不存在'), { code: 40000 })
+}
+
 export function listOrders(_openid, page, pageSize) {
   return { list: [], total: 0, page, page_size: pageSize }
 }

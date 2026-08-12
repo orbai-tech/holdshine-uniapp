@@ -1,4 +1,4 @@
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { fetchAuthProfile, loginByWxCode, logoutRemote } from '@/common/apis/authApi'
 import type { RitualId } from '@/common/types/catalog'
@@ -13,11 +13,22 @@ import {
 } from '@/utils/authStorage'
 import { getWxLoginCode } from '@/utils/wxLogin'
 
+const TAB_URLS = [
+  '/pages/home/index',
+  '/pages/menu/index',
+  '/pages/orders/index',
+  '/pages/select/index',
+  '/pages/mine/index',
+] as const
+
+export type TabUrl = (typeof TAB_URLS)[number]
+
 export const useSessionStore = defineStore('session', () => {
   const ritualFilter = ref<RitualId | null>(null)
   const categoryId = ref<number | null>(null)
   const productId = ref<string | null>(null)
   const cartOpen = ref(false)
+  const suppressTabBar = ref(false)
   const token = ref('')
   const user = ref<AuthUser | null>(null)
   const authBusy = ref(false)
@@ -25,16 +36,12 @@ export const useSessionStore = defineStore('session', () => {
 
   const productOpen = computed(() => Boolean(productId.value))
   const loggedIn = computed(() => Boolean(token.value && user.value))
+  /** 原生 tabBar 始终隐藏，页面内纯文字导航由 chrome 渲染 */
+  const tabBarVisible = computed(
+    () => !productOpen.value && !cartOpen.value && !suppressTabBar.value,
+  )
 
-  let tabBarLocked = false
   let profileChecked = false
-
-  type TabUrl =
-    | '/pages/home/index'
-    | '/pages/menu/index'
-    | '/pages/orders/index'
-    | '/pages/member/index'
-    | '/pages/mine/index'
 
   function currentTabUrl(): string {
     const pages = getCurrentPages()
@@ -42,24 +49,21 @@ export const useSessionStore = defineStore('session', () => {
     return page?.route ? `/${page.route}` : ''
   }
 
-  function syncTabBar() {
-    if (tabBarLocked) return
-    if (productId.value || cartOpen.value) {
-      uni.hideTabBar({ animation: false })
-      return
-    }
-    uni.showTabBar({ animation: false })
+  function hideNativeTabBar() {
+    // nextTick：避免与页面 onShow / switchTab 竞态导致 hideTabBar 无效
+    void nextTick(() => {
+      uni.hideTabBar({ animation: false, fail() {} })
+    })
   }
 
-  watch([productId, cartOpen], syncTabBar)
+  watch([productId, cartOpen, suppressTabBar], hideNativeTabBar)
 
   function goTab(url: TabUrl) {
-    tabBarLocked = true
     productId.value = null
     cartOpen.value = false
+    suppressTabBar.value = false
     if (currentTabUrl() === url) {
-      tabBarLocked = false
-      syncTabBar()
+      hideNativeTabBar()
       return
     }
     uni.switchTab({
@@ -67,10 +71,13 @@ export const useSessionStore = defineStore('session', () => {
       // 基础库 3.x 对未处理的 switchTab fail 会打 MiniProgramError
       fail() {},
       complete() {
-        tabBarLocked = false
-        syncTabBar()
+        hideNativeTabBar()
       },
     })
+  }
+
+  function setSuppressTabBar(hidden: boolean) {
+    suppressTabBar.value = hidden
   }
 
   function applySession(nextToken: string, nextUser: AuthUser) {
@@ -113,7 +120,7 @@ export const useSessionStore = defineStore('session', () => {
     authBusy.value = true
     try {
       const payload = await getWxLoginCode()
-      console.info('[SOORAK] 准备换票', payload.platform, payload.code.slice(0, 8))
+      console.info('[元气善筑] 准备换票', payload.platform, payload.code.slice(0, 8))
       const result = await loginByWxCode(payload)
       lastLoginMock.value = false
       applySession(result.token, result.user)
@@ -126,22 +133,24 @@ export const useSessionStore = defineStore('session', () => {
     if (authBusy.value) return
     authBusy.value = true
     try {
-      await logoutRemote().catch(() => undefined)
-    } finally {
+      if (token.value) {
+        try {
+          await logoutRemote()
+        } catch {
+          /* 本地仍清会话 */
+        }
+      }
       clearSession()
+    } finally {
       authBusy.value = false
     }
   }
 
-  subscribeUnauthorized(() => {
-    token.value = ''
-    user.value = null
-    lastLoginMock.value = false
-  })
-
   function handleUnauthorized() {
     clearSession()
   }
+
+  subscribeUnauthorized(handleUnauthorized)
 
   function setRitualFilter(id: RitualId | null) {
     ritualFilter.value = id
@@ -177,12 +186,14 @@ export const useSessionStore = defineStore('session', () => {
     categoryId,
     productId,
     cartOpen,
+    suppressTabBar,
     token,
     user,
     authBusy,
     lastLoginMock,
     loggedIn,
     productOpen,
+    tabBarVisible,
     restoreSession,
     verifySession,
     login,
@@ -194,7 +205,9 @@ export const useSessionStore = defineStore('session', () => {
     openProduct,
     closeProduct,
     setCartOpen,
+    setSuppressTabBar,
     goMenuWithRitual,
     goTab,
+    hideNativeTabBar,
   }
 })

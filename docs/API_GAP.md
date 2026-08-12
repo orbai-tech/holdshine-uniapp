@@ -237,7 +237,7 @@
 | --- | --- | --- | --- | --- | --- |
 | FIELD-GAP-001 | 登录 | ✅ | `token`+`userinfo`；无 `expiresIn`/`mock` | 旧 LoginResult | 已对齐；`platform` 不发送 |
 | FIELD-GAP-002 | 会员 / 我的 | ❓ | `/me` 有昵称/卡号/等级 id | 英雄卡 + 等级列表 | **原因：**规划 Member 无积分余额；等级权益无接口（FE-NEED-002/003），UI 占位 |
-| FIELD-GAP-003 | 首页品牌 / 仪式 | ❓ | 店名/营业时间来自 StoreRes | 素乐品牌区 + 四仪式 | **原因：**文档无 tagline/belief/Ritual，仍用本地文案 |
+| FIELD-GAP-003 | 首页品牌 / 仪式 | ❓ | 店名/营业时间来自 StoreRes | 元气善筑品牌区 + 四仪式 | **原因：**文档无 tagline/belief/Ritual，仍用本地文案 |
 | FIELD-GAP-004 | 点单筛选 | ✅ | `category_name` | 分类 chip | 已改用文档分类 |
 | FIELD-GAP-005 | 规格 Sheet | ❓ | `skus` + `option_groups` | 杯型/温度/加料 | **原因：**无规格数据时仍回落本地 +¥3；英文/故事占位 |
 | FIELD-GAP-006 | 首页距离 | ❓ | admin StoreRes 无 distance | `brand.distance` | **原因：**走 admin 列表，前端用经纬度自算；无坐标则「—」 |

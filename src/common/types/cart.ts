@@ -9,6 +9,10 @@ export interface CartAddReq {
   table_id?: number | null
 }
 
+export interface CartUpdateQtyReq {
+  quantity: number
+}
+
 export interface CartOptionRes {
   option_id?: number
   option_name?: string

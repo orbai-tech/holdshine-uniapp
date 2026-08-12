@@ -26,6 +26,7 @@ async function load() {
 }
 
 onShow(() => {
+  session.hideNativeTabBar()
   void load()
 })
 </script>

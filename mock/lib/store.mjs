@@ -44,7 +44,7 @@ export function getUser(openid) {
 
 export function mockOpenidFromCode(code) {
   const digest = createHash('sha1').update(code).digest('hex').slice(0, 16)
-  return `oSOORAK_mock_${digest}`
+  return `oYQSZ_mock_${digest}`
 }
 
 export function rememberSession(token, openid) {

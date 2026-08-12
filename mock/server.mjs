@@ -2,7 +2,7 @@ import http from 'node:http'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { config } from './config.mjs'
-import { addCartItem, getCart, listOrders } from './lib/commerce.mjs'
+import { addCartItem, getCart, listOrders, removeCartItem, updateCartItem } from './lib/commerce.mjs'
 import { buildMenu, stores } from './lib/fixtures.mjs'
 import { forgetSession, getUser, hasSession, rememberSession, toMpUserinfo } from './lib/store.mjs'
 import { issueToken, verifyToken } from './lib/token.mjs'
@@ -115,7 +115,7 @@ async function handle(req, res) {
 
   if (req.method === 'GET' && (path === '/' || path === '/health')) {
     ok(res, {
-      name: 'soorak-mock',
+      name: 'yuanqi-mock',
       wxAppId: config.wxAppId ? `${config.wxAppId.slice(0, 6)}…` : '',
       liveLogin: config.wxLiveLogin,
       routes: [
@@ -237,6 +237,23 @@ async function handle(req, res) {
     return
   }
 
+  const cartItemMatch = path.match(/^\/api\/mp\/cart\/items\/(\d+)$/)
+  if (cartItemMatch && (req.method === 'PUT' || req.method === 'DELETE')) {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    try {
+      const itemId = cartItemMatch[1]
+      if (req.method === 'PUT') {
+        ok(res, updateCartItem(session.user.openid, itemId, await readBody(req)))
+      } else {
+        ok(res, removeCartItem(session.user.openid, itemId))
+      }
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
+    return
+  }
+
   if (req.method === 'GET' && path === '/api/mp/orders') {
     const session = requireMpSession(req, res)
     if (!session) return
@@ -262,7 +279,7 @@ const isDirectRun = process.argv[1] && fileURLToPath(import.meta.url) === path.r
 if (isDirectRun) {
   const server = createServer()
   server.listen(config.port, '0.0.0.0', () => {
-    console.log(`[mock] 素乐假后端已启动 http://127.0.0.1:${config.port}`)
+    console.log(`[mock] 元气善筑假后端已启动 http://127.0.0.1:${config.port}`)
     console.log('[mock] 已接入路径：/api/mp/auth/*  /api/admin/stores  /api/mp/stores/:id/menu  /api/mp/cart  /api/mp/orders')
     if (!config.wxAppId || !config.wxSecret) {
       console.warn('[mock] 未配置 WX_APPID / WX_SECRET，仅提供模拟会话')

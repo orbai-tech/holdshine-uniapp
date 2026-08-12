@@ -23,7 +23,7 @@ loadDotEnv(path.join(root, '.env'))
 export const config = {
   root,
   port: Number(process.env.PORT) || 3780,
-  tokenSecret: process.env.TOKEN_SECRET || 'soorak-mock-dev-token-secret',
+  tokenSecret: process.env.TOKEN_SECRET || 'yuanqi-mock-dev-token-secret',
   tokenExpiresIn: Number(process.env.TOKEN_EXPIRES_IN) || 7200,
   wxAppId: process.env.WX_APPID || '',
   wxSecret: process.env.WX_SECRET || '',

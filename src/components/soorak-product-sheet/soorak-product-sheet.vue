@@ -1,7 +1,15 @@
+<script lang="ts">
+export default {
+  options: {
+    virtualHost: true,
+    styleIsolation: 'shared',
+  },
+}
+</script>
+
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import SoorakSheet from '@/components/soorak-sheet/soorak-sheet.vue'
-import SoorakButton from '@/components/soorak-button/soorak-button.vue'
 import { useCartStore } from '@/stores/cart'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSessionStore } from '@/stores/session'
@@ -20,6 +28,8 @@ const product = computed(() => {
   if (!session.productId) return null
   return catalog.findProduct(session.productId)
 })
+
+const isRetail = computed(() => product.value?.cat === 'retail')
 
 const hasApiOptions = computed(() => Boolean(product.value?.skus?.length || product.value?.optionGroups?.length))
 
@@ -62,6 +72,11 @@ const unit = computed(() => {
   return product.value.price + (size.value === '大杯' ? 3 : 0) + extras.value.length * 3
 })
 
+const sheetOpen = computed(() => product.value != null)
+const sheetTitle = computed(() => (isRetail.value ? '商品详情' : '选规格'))
+
+const showRitual = computed(() => Boolean(product.value?.desc || product.value?.tag))
+
 function toggleOption(id: number) {
   optionIds.value = optionIds.value.includes(id)
     ? optionIds.value.filter((item) => item !== id)
@@ -74,11 +89,11 @@ function toggleExtra(name: string) {
     : [...extras.value, name]
 }
 
-async function add() {
-  if (!product.value || cart.writeBusy) return
+async function add(openCart = true): Promise<boolean> {
+  if (!product.value || cart.writeBusy) return false
   const storeId = catalog.currentStoreId
   const productId = product.value.productId
-  if (storeId == null || productId == null) return
+  if (storeId == null || productId == null) return false
   await cart.addToCart(
     {
       product: product.value,
@@ -94,15 +109,56 @@ async function add() {
       option_ids: optionIds.value,
       quantity: qty.value,
     },
+    openCart,
   )
+  return true
+}
+
+async function addRetailToBag() {
+  const ok = await add(false)
+  if (ok) uni.showToast({ title: '已加入今日茶单', icon: 'none' })
+}
+
+async function buyNow() {
+  await add(true)
 }
 </script>
 
 <template>
-  <SoorakSheet :open="Boolean(product)" title="选规格" @close="session.closeProduct()">
+  <SoorakSheet :open="sheetOpen" :title="sheetTitle" @close="session.closeProduct()">
     <view v-if="product" class="ps">
-      <image class="ps__img" :src="product.img" mode="aspectFill" />
-      <view class="ps__content">
+      <view class="ps__portrait" :class="{ 'ps__portrait--retail': isRetail }">
+        <image class="ps__img" :class="{ 'ps__img--retail': isRetail }" :src="product.img" mode="aspectFill" />
+        <text v-if="isRetail && product.tag" class="ps__tag">{{ product.tag }}</text>
+      </view>
+
+      <!-- retail 展柜内容 -->
+      <view v-if="isRetail" class="ps__content">
+        <text class="ps__price">¥{{ unit }}</text>
+        <text class="t-label">{{ product.en }}</text>
+        <text class="t-title ps__name">{{ product.name }}</text>
+        <text v-if="product.scene" class="ps__scene">{{ product.scene }}</text>
+
+        <view v-if="showRitual" class="ps__ritual">
+          <text class="ps__ritual-title">礼遇 · 门店仪式可带回家</text>
+          <text v-if="product.desc" class="ps__ritual-desc">{{ product.desc }}</text>
+        </view>
+
+        <template v-if="product.story">
+          <view v-if="storyOpen" class="ps__story is-open">{{ product.story }}</view>
+          <view class="ps__more" @click="storyOpen = !storyOpen">
+            {{ storyOpen ? '收起故事' : '展开产品故事' }}
+          </view>
+        </template>
+
+        <view class="ps__detail">
+          <text class="ps__detail-title">商品详情</text>
+          <view class="ps__detail-mock" />
+        </view>
+      </view>
+
+      <!-- 饮品：保持改前结构 -->
+      <view v-else class="ps__content">
         <text class="t-label">{{ product.en }}</text>
         <text class="t-title ps__name">{{ product.name }}</text>
         <text class="ps__scene">{{ product.scene }}</text>
@@ -141,7 +197,7 @@ async function add() {
             </view>
           </view>
         </template>
-        <template v-else-if="product.cat !== 'retail'">
+        <template v-else>
           <view class="ps__group">
             <text class="t-label">杯型</text>
             <view class="ps-chips">
@@ -198,25 +254,90 @@ async function add() {
     </view>
 
     <template #footer>
-      <view class="ps-cta">
-        <SoorakButton block @click="add">
-          <text class="ps-cta__label">
+      <view
+        v-if="isRetail"
+        class="ps-cta ps-cta--retail"
+        style="width:100%;display:flex;flex-direction:row;align-items:center;box-sizing:border-box;"
+      >
+        <view class="ps-bag" @click="session.setCartOpen(true)">
+          <text class="ps-bag__icon">袋</text>
+          <text class="ps-bag__label">购物袋</text>
+        </view>
+        <view
+          class="ps-cta__actions"
+          style="flex:1;width:0;min-width:0;display:flex;flex-direction:row;align-items:center;"
+        >
+          <view
+            class="ps-cta__btn ps-cta__btn--secondary"
+            style="flex:1;width:0;min-width:0;"
+            hover-class="ps-cta__btn--active"
+            @click="addRetailToBag"
+          >
+            <text class="ps-cta__label">{{ cart.writeBusy ? '加入中…' : '加入购物袋' }}</text>
+          </view>
+          <view
+            class="ps-cta__btn ps-cta__btn--primary"
+            style="flex:1;width:0;min-width:0;"
+            hover-class="ps-cta__btn--active-primary"
+            @click="buyNow"
+          >
+            <text class="ps-cta__label ps-cta__label--light">{{ cart.writeBusy ? '加入中…' : '立刻下单' }}</text>
+          </view>
+        </view>
+      </view>
+      <!-- 饮品专属全宽 CTA -->
+      <view v-else class="ps-cta ps-cta--drink" style="width:100%;">
+        <view
+          class="ps-cta__drink-btn"
+          hover-class="ps-cta__drink-btn--active"
+          @click="add()"
+        >
+          <text class="ps-cta__drink-label">
             ¥{{ unit * qty }} {{ cart.writeBusy ? '加入中…' : '加入购物袋' }}
           </text>
-        </SoorakButton>
+        </view>
       </view>
     </template>
   </SoorakSheet>
 </template>
 
 <style lang="scss" scoped>
+.ps__portrait {
+  position: relative;
+}
+
 .ps__img {
   width: 100%;
   height: 360rpx;
+  display: block;
+}
+
+.ps__img--retail {
+  height: 440rpx;
+}
+
+.ps__tag {
+  position: absolute;
+  left: 12rpx;
+  bottom: 12rpx;
+  padding: 4rpx 12rpx;
+  background: rgba(20, 17, 15, 0.72);
+  color: $mp-paper;
+  font-size: 18rpx;
+  letter-spacing: 0.06em;
 }
 
 .ps__content {
   padding: 28rpx 32rpx 16rpx;
+}
+
+.ps__price {
+  display: block;
+  margin-bottom: 12rpx;
+  font-family: "Songti SC", "Noto Serif SC", serif;
+  font-size: 44rpx;
+  font-weight: 500;
+  line-height: 1.2;
 }
 
 .ps__name {
@@ -229,6 +350,49 @@ async function add() {
   margin: 0 0 20rpx;
   font-size: 24rpx;
   color: $mp-brass;
+}
+
+.ps__ritual {
+  margin: 0 0 24rpx;
+  padding: 20rpx 24rpx;
+  background: $mp-stone;
+  border-radius: 8rpx;
+}
+
+.ps__ritual-title {
+  display: block;
+  font-size: 24rpx;
+  letter-spacing: 0.08em;
+  color: $mp-text;
+}
+
+.ps__ritual-desc {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  line-height: 1.55;
+  color: $mp-text-2;
+}
+
+.ps__detail {
+  margin: 8rpx 0 24rpx;
+}
+
+.ps__detail-title {
+  display: block;
+  margin-bottom: 16rpx;
+  font-family: "Songti SC", "Noto Serif SC", serif;
+  font-size: 28rpx;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: $mp-text;
+}
+
+.ps__detail-mock {
+  width: 100%;
+  height: 360rpx;
+  border-radius: 8rpx;
+  background: $mp-stone;
 }
 
 .ps__story {
@@ -318,14 +482,138 @@ async function add() {
   font-size: 32rpx;
 }
 
-.ps-cta {
-  flex: 1;
+.ps-cta--drink {
+  display: block;
   width: 100%;
-  min-width: 0;
+}
+
+.ps-cta__drink-btn {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 96rpx;
+  padding: 0 32rpx;
+  border-radius: 8rpx;
+  background: $mp-moss;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ps-cta__drink-btn--active {
+  opacity: 0.92;
+  transform: scale(0.98);
+  background: $mp-moss-deep;
+}
+
+.ps-cta__drink-label {
+  max-width: 100%;
+  font-size: 34rpx;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  color: $mp-paper;
+  text-align: center;
+}
+
+.ps-bag__icon {
+  font-size: 28rpx;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: $mp-text;
+}
+
+.ps-bag__label {
+  font-size: 18rpx;
+  letter-spacing: 0.04em;
+  color: $mp-text-2;
 }
 
 .ps-cta__label {
   font-size: 30rpx;
-  letter-spacing: 0.04em;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: $mp-text;
+}
+
+.ps-cta__label--light {
+  color: $mp-paper;
+}
+</style>
+
+<!-- 非 scoped：footer 经 root-portal 挂载后，宽度布局必须用全局选择器才能稳定撑开 -->
+<style lang="scss">
+.ps-cta {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.ps-cta--retail {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ps-bag {
+  flex-shrink: 0;
+  width: 88rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4rpx;
+}
+
+.ps-cta__actions {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  margin-left: 16rpx;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.ps-cta__btn {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 96rpx;
+  padding: 0 16rpx;
+  border-radius: 8rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ps-cta__btn + .ps-cta__btn {
+  margin-left: 16rpx;
+}
+
+.ps-cta__btn--secondary {
+  background: transparent;
+  box-shadow: inset 0 0 0 1rpx $mp-border;
+}
+
+.ps-cta__btn--primary {
+  background: $mp-moss;
+}
+
+.ps-cta__btn--active {
+  opacity: 0.92;
+  transform: scale(0.98);
+}
+
+.ps-cta__btn--active-primary {
+  opacity: 0.92;
+  transform: scale(0.98);
+  background: $mp-moss-deep;
 }
 </style>

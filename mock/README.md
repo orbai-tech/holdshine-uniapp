@@ -1,4 +1,4 @@
-# 素乐 Mock 后端
+# 元气善筑 Mock 后端
 
 本地假后端，用来打通「前端 `uni.login` → 换 token → 带 Bearer 访问」这条鉴权链路。
 

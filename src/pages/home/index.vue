@@ -23,12 +23,13 @@ const featured = computed(() => {
 })
 
 onShow(() => {
+  session.hideNativeTabBar()
   void catalog.ensureLoaded()
 })
 </script>
 
 <template>
-  <SoorakChrome title="素乐">
+  <SoorakChrome title="元气善筑">
     <view v-if="catalog.loading" class="mp-empty">
       <text class="t-caption">加载中</text>
     </view>
@@ -44,7 +45,6 @@ onShow(() => {
           <text class="t-label home-hero__label">{{ catalog.brand.tagline }}</text>
           <view class="t-hero">
             <text>{{ catalog.brand.name }}</text>
-            <text class="home-hero__en">SOORAK</text>
           </view>
           <text class="home-hero__belief">{{ catalog.brand.belief }}</text>
           <SoorakButton @click="session.goTab('/pages/menu/index')">去点单</SoorakButton>
@@ -102,7 +102,7 @@ onShow(() => {
 
       <view class="home-block home-wx">
         <text class="t-label">WeChat</text>
-        <text class="t-section home-wx__title">微信能力预留</text>
+        <text class="t-section home-wx__title">微信能力</text>
         <view class="wx-row">
           <view class="wx-row__btn">分享给好友</view>
           <view class="wx-row__btn">联系客服</view>
@@ -162,13 +162,6 @@ onShow(() => {
   display: flex;
   flex-direction: column;
   gap: 8rpx;
-}
-
-.home-hero__en {
-  font-size: 24rpx;
-  letter-spacing: 0.28em;
-  font-weight: 400;
-  opacity: 0.7;
 }
 
 .home-hero__belief {

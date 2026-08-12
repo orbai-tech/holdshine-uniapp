@@ -4,7 +4,7 @@ import type { MemberPayload, MemberProfile } from '@/common/types/member'
 
 function placeholderProfile(name: string, memberNo: string): MemberProfile {
   return {
-    name: name || '素乐会员',
+    name: name || '元气善筑会员',
     tier: '—',
     memberNo: memberNo || '—',
     // TODO(FE-NEED-003)

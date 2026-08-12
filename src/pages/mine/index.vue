@@ -50,15 +50,12 @@ async function load() {
 }
 
 onShow(() => {
+  session.hideNativeTabBar()
   void load()
 })
 
 watch(tiersSheetOpen, (open) => {
-  if (open) {
-    uni.hideTabBar({ animation: false })
-    return
-  }
-  uni.showTabBar({ animation: false })
+  session.setSuppressTabBar(open)
 })
 
 async function onLogin() {
@@ -67,7 +64,7 @@ async function onLogin() {
     uni.showToast({ title: '登录成功', icon: 'none' })
     await load()
   } catch (error) {
-    console.error('[SOORAK] 登录失败', error)
+    console.error('[元气善筑] 登录失败', error)
     const message = toErrorMessage(error, '登录失败')
     if (message !== 'UNAUTHORIZED') {
       uni.showToast({ title: message.slice(0, 40), icon: 'none' })
@@ -101,7 +98,7 @@ function tierThresholdText(tier: MemberTier) {
     </view>
     <view v-else class="page-mine page-pad">
       <view class="member-hero">
-        <text class="t-label member-hero__label">SOORAK Club</text>
+        <text class="t-label member-hero__label">元气善筑</text>
         <template v-if="session.loggedIn && bundle">
           <text class="member-hero__name">{{ bundle.profile.name }}</text>
           <text class="member-hero__tier">{{ bundle.profile.tier }}</text>
@@ -128,7 +125,7 @@ function tierThresholdText(tier: MemberTier) {
           </view>
         </template>
         <template v-else>
-          <text class="member-hero__name">登录后开启 SOORAK Club</text>
+          <text class="member-hero__name">欢迎贵宾光临元气善筑</text>
           <text class="t-caption member-hero__cap">同步订单、礼遇与成长值</text>
           <view class="member-hero__login">
             <SoorakButton block @click="onLogin">
@@ -169,7 +166,7 @@ function tierThresholdText(tier: MemberTier) {
           <text>我的订单</text>
           <text class="mine-cell__em">›</text>
         </view>
-        <view class="mine-cell" @click="session.goTab('/pages/member/index')">
+        <view class="mine-cell" @click="session.goTab('/pages/select/index')">
           <text>选物</text>
           <text class="mine-cell__em">›</text>
         </view>
@@ -194,7 +191,7 @@ function tierThresholdText(tier: MemberTier) {
         </view>
         <!-- #endif -->
         <view class="mine-cell">
-          <text>关于素乐</text>
+          <text>关于元气善筑</text>
           <text class="mine-cell__em">V1.0 ›</text>
         </view>
       </view>

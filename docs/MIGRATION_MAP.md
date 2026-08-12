@@ -8,7 +8,7 @@
 | `src/styles/global.css` 字体与排版类 | `src/styles/global.scss`（`.t-*`） | t-label/t-hero/t-title/t-section/t-product/t-caption 信息层级 | 偏差 |
 | `src/App.tsx` Shell + 假路由 | `src/pages.json` + 五 Tab 页 | 禁止 App.vue 假路由；五 Tab 可 switchTab | 完成 |
 | `src/components/MpTabBar.tsx` | `pages.json` tabBar | 文案：首页/点单/订单/会员/我的；选中色 moss `#33473d` | 完成 |
-| `src/components/MpNavBar.tsx` + `chrome.css` | `src/components/soorak-nav-bar/` | 左 SOORAK / 返回；中标题；右「袋」+ 数量角标；点袋开购物车 | 完成 |
+| `src/components/MpNavBar.tsx` + `chrome.css` | `src/components/soorak-nav-bar/` | 左品牌名 / 返回；中标题；右「袋」+ 数量角标；点袋开购物车 | 完成 |
 | `src/components/MpButton.tsx` + `ui.css` 按钮 | `src/components/soorak-button/` | primary/secondary/ghost、block、文案与热区 | 完成 |
 | `src/components/MpSheet.tsx` + `ui.css` 浮层 | `src/components/soorak-sheet/` | 遮罩关闭、标题栏「关闭」、footer、自底向上 | 完成 |
 | `src/components/ProductSheet.tsx` | `src/components/soorak-product-sheet/` | 打开方=首页精选/点单卡片；关闭重置规格；零售无杯型温度加料；计价规则 | 完成 |
@@ -24,5 +24,5 @@
 | `src/components/chrome.css` / `ui.css` / `pages.css` | 各页与 chrome/sheet scoped SCSS | 间距、圆角、纸色/云色块面对齐 | 完成 |
 | `public/images/products/*` | `src/static/images/products/*` | 资源映射；12 张真实 jpg 已对齐 | 完成 |
 | `public/icons.svg` / `favicon.svg` | 不迁移 | 旧仓 Vite 壳资源，非业务 | 完成 |
-| `index.html` 标题/主题色 | `manifest.json`、`.env.example` | 应用名「素乐 SOORAK」 | 完成 |
+| `index.html` 标题/主题色 | `manifest.json`、`.env.example` | 应用名「元气善筑」 | 完成 |
 | 登录/支付（旧仓仅演示开关） | `src/stores/session.ts` + `authApi` + `mock/` | 微信 code 换 token；H5 可走 mock 会话 | 完成 |

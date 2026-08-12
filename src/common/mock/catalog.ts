@@ -2,8 +2,8 @@ import type { BrandInfo, Product, Ritual } from '@/common/types/catalog'
 import type { MemberProfile, MemberTier } from '@/common/types/member'
 
 export const brand: BrandInfo = {
-  name: '素乐',
-  nameEn: 'SOORAK',
+  name: '元气善筑',
+  nameEn: '',
   tagline: '首尔 · 滋补食材 × 精品咖啡',
   belief: '以一杯饮品，完成一次对身体与节奏的温柔校准。',
   store: '上海静安嘉里中心店',
@@ -86,7 +86,7 @@ export const products: Product[] = [
     name: '黑芝麻燕麦拿铁',
     en: 'Black Sesame Oat Latte',
     desc: '现磨黑芝麻酱 × 燕麦奶，温润醇香',
-    story: '现磨黑芝麻酱遇见燕麦奶，东方谷物香气与西式奶咖结构相遇——素乐最具辨识度的跨界创作。',
+    story: '现磨黑芝麻酱遇见燕麦奶，东方谷物香气与西式奶咖结构相遇——元气善筑最具辨识度的跨界创作。',
     price: 28,
     img: '/static/images/products/sesame.jpg',
     cat: 'coffee',

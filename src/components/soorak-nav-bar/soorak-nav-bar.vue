@@ -34,7 +34,7 @@ function openCart() {
     <view class="mp-navbar__inner">
       <view class="mp-navbar__left">
         <view v-if="showBack" class="mp-navbar__back" @click="onBack">‹</view>
-        <text v-else class="mp-navbar__brand">SOORAK</text>
+        <text v-else class="mp-navbar__brand">元气善筑</text>
       </view>
       <text class="mp-navbar__title">{{ title }}</text>
       <view class="mp-navbar__right">

@@ -46,7 +46,7 @@ export async function getWxLoginCode(): Promise<WxLoginPayload> {
     const code = await requestWxCode()
     return { code, platform }
   } catch (error) {
-    console.warn('[SOORAK] uni.login 失败，回落开发 code，便于打通本地 mock', error)
+    console.warn('[元气善筑] uni.login 失败，回落开发 code，便于打通本地 mock', error)
     return {
       code: `dev-wx-fallback-${Date.now()}`,
       platform,

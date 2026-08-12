@@ -27,6 +27,7 @@ const list = computed(() => {
 })
 
 onShow(() => {
+  session.hideNativeTabBar()
   void catalog.ensureLoaded().then(() => {
     const active = session.categoryId
     if (active == null) return

@@ -1,6 +1,6 @@
-# 素乐 SOORAK · UniApp
+# 元气善筑 · UniApp
 
-将 `soorak-mp`（React SPA）按行为等价迁移到 UniApp Vue 3 + TypeScript + Pinia。
+将旧仓 React SPA 按行为等价迁移到 UniApp Vue 3 + TypeScript + Pinia。
 
 ## 技术栈
 

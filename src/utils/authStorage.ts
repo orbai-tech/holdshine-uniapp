@@ -1,7 +1,7 @@
 import type { AuthUser } from '@/common/types/auth'
 
 export const TOKEN_KEY = 'access_token'
-export const USER_KEY = 'soorak_user'
+export const USER_KEY = 'yuanqi_user'
 export const EXPIRES_KEY = 'token_expires_at'
 
 export function readStoredToken(): string {

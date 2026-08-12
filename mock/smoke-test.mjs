@@ -25,7 +25,7 @@ try {
   const health = await request('/health')
   assert.equal(health.status, 200)
   assert.equal(health.json.code, 0)
-  assert.equal(health.json.data.name, 'soorak-mock')
+  assert.equal(health.json.data.name, 'yuanqi-mock')
 
   const denied = await request('/auth/profile')
   assert.equal(denied.status, 401)
@@ -38,7 +38,7 @@ try {
   assert.equal(login.json.code, 0)
   assert.equal(login.json.data.mock, true)
   assert.ok(login.json.data.token)
-  assert.ok(login.json.data.user.openid.startsWith('oSOORAK_mock_'))
+  assert.ok(login.json.data.user.openid.startsWith('oYQSZ_mock_'))
   assert.equal(login.json.data.user.nickname, '陈先生')
 
   const profile = await request('/auth/profile', { token: login.json.data.token })

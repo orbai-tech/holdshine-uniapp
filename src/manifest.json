@@ -1,7 +1,7 @@
 {
-  "name": "素乐 SOORAK",
-  "appid": "wx9b8d746e5c4780ef",
-  "description": "素乐 SOORAK 小程序体验版（UniApp 迁移）",
+  "name": "元气善筑",
+  "appid": "wxc7abc29ecddc62c5",
+  "description": "元气善筑小程序体验版（UniApp 迁移）",
   "versionName": "1.0.0",
   "versionCode": "100",
   "transformPx": false,
@@ -19,7 +19,7 @@
     "distribute": { "android": {}, "ios": {}, "sdkConfigs": {} }
   },
   "h5": {
-    "title": "素乐 SOORAK",
+    "title": "元气善筑",
     "devServer": {
       "host": "0.0.0.0",
       "port": 5173,
@@ -27,7 +27,7 @@
     }
   },
   "mp-weixin": {
-    "appid": "wx9b8d746e5c4780ef",
+    "appid": "wxc7abc29ecddc62c5",
     "setting": { "urlCheck": false, "es6": false },
     "usingComponents": true,
     "requiredPrivateInfos": ["getLocation"],

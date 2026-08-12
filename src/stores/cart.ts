@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { addCartItem, getCart } from '@/common/apis/cartApi'
+import { addCartItem, getCart, updateCartItem } from '@/common/apis/cartApi'
 import type { CartAddReq, CartItemRes, CartRes } from '@/common/types/cart'
 import type { CartItem, OrderItem } from '@/common/types/commerce'
 import { parseAmount } from '@/utils/money'
@@ -39,7 +39,7 @@ export const useCartStore = defineStore('cart', () => {
     applyCart(await getCart(storeId))
   }
 
-  async function addToCart(item: CartItem, payload: CartAddReq) {
+  async function addToCart(item: CartItem, payload: CartAddReq, openCart = true) {
     if (writeBusy.value) return
     writeBusy.value = true
     const session = useSessionStore()
@@ -47,7 +47,8 @@ export const useCartStore = defineStore('cart', () => {
       applyCart(await addCartItem(payload))
       items.value = [...items.value, item]
       session.closeProduct()
-      session.setCartOpen(true)
+      // 加入购物袋不强制开袋，故 openCart=false 时跳过
+      if (openCart) session.setCartOpen(true)
     } finally {
       writeBusy.value = false
     }
@@ -55,6 +56,30 @@ export const useCartStore = defineStore('cart', () => {
 
   function itemLineAmount(row: CartItemRes): number {
     return parseAmount(row.line_amount)
+  }
+
+  async function changeRemoteQty(itemId: number, delta: number) {
+    if (writeBusy.value || !remote.value) return
+    const current = remote.value.items?.find((item) => item.item_id === itemId)
+    if (!current) return
+    const nextQty = current.quantity + delta
+    if (nextQty < 1) return
+    writeBusy.value = true
+    try {
+      applyCart(await updateCartItem(itemId, { quantity: nextQty }))
+    } finally {
+      writeBusy.value = false
+    }
+  }
+
+  function changeLocalQty(index: number, delta: number) {
+    const current = items.value[index]
+    if (!current) return
+    const nextQty = current.qty + delta
+    if (nextQty < 1) return
+    const next = [...items.value]
+    next[index] = { ...current, qty: nextQty }
+    items.value = next
   }
 
   function placeOrder() {
@@ -93,6 +118,8 @@ export const useCartStore = defineStore('cart', () => {
     addToCart,
     refreshCart,
     itemLineAmount,
+    changeRemoteQty,
+    changeLocalQty,
     placeOrder,
   }
 })

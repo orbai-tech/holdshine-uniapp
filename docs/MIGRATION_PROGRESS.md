@@ -4,7 +4,7 @@
 
 ## Slice 0 Bootstrap
 
-- 改动：四份契约文档；`uni.scss` / `global.scss` 落地 SOORAK tokens；`pages.json` 五 Tab；去掉 Orb 示例页。
+- 改动：四份契约文档；`uni.scss` / `global.scss` 落地品牌 tokens；`pages.json` 五 Tab；去掉 Orb 示例页。
 - 验证：见文末命令（与后续切片合并执行）。
 - 偏差：DEV-003、DEV-007。
 - CODECRAFT：多余改动无。
@@ -12,7 +12,7 @@
 
 ## Slice 1 基础设施
 
-- 改动：`common/types/*`、`common/mock/catalog.ts`、`catalogApi`/`memberApi`、`stores/session|cart|catalog`；请求层沿用 `plugin/request`；`.env.example` 标题改为素乐。
+- 改动：`common/types/*`、`common/mock/catalog.ts`、`catalogApi`/`memberApi`、`stores/session|cart|catalog`；请求层沿用 `plugin/request`；`.env.example` 标题改为元气善筑。
 - 验证：Mock 开关 `VITE_ENABLE_MOCK`；页面不直读 mock。
 - 偏差：DEV-008。
 - CODECRAFT：多余改动无。
