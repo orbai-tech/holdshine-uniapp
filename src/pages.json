@@ -54,7 +54,7 @@
       },
       {
         "pagePath": "pages/member/index",
-        "text": "会员",
+        "text": "选物",
         "iconPath": "static/tab/dot-off.png",
         "selectedIconPath": "static/tab/dot-on.png"
       },
@@ -72,7 +72,7 @@
       { "name": "首页", "path": "pages/home/index" },
       { "name": "点单", "path": "pages/menu/index" },
       { "name": "订单", "path": "pages/orders/index" },
-      { "name": "会员", "path": "pages/member/index" },
+      { "name": "选物", "path": "pages/member/index" },
       { "name": "我的", "path": "pages/mine/index" }
     ]
   }

@@ -35,7 +35,9 @@ const emit = defineEmits<{ click: [] }>()
 }
 
 .mp-btn--block {
+  display: flex;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .mp-btn--primary {

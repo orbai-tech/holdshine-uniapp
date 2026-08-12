@@ -198,11 +198,13 @@ async function add() {
     </view>
 
     <template #footer>
-      <view>
-        <text class="t-caption">合计</text>
-        <text class="ps-price">¥{{ unit * qty }}</text>
+      <view class="ps-cta">
+        <SoorakButton block @click="add">
+          <text class="ps-cta__label">
+            ¥{{ unit * qty }} {{ cart.writeBusy ? '加入中…' : '加入购物袋' }}
+          </text>
+        </SoorakButton>
       </view>
-      <SoorakButton @click="add">{{ cart.writeBusy ? '加入中…' : '加入购物袋' }}</SoorakButton>
     </template>
   </SoorakSheet>
 </template>
@@ -316,10 +318,14 @@ async function add() {
   font-size: 32rpx;
 }
 
-.ps-price {
-  display: block;
-  font-family: "Songti SC", "Noto Serif SC", serif;
-  font-size: 44rpx;
-  font-weight: 500;
+.ps-cta {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+}
+
+.ps-cta__label {
+  font-size: 30rpx;
+  letter-spacing: 0.04em;
 }
 </style>

@@ -3,220 +3,106 @@ import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import SoorakChrome from '@/components/soorak-chrome/soorak-chrome.vue'
 import SoorakButton from '@/components/soorak-button/soorak-button.vue'
-import { getMemberBundle } from '@/common/apis/memberApi'
-import { useSessionStore } from '@/stores/session'
-import type { MemberPayload } from '@/common/types/member'
+import ProductCard from '@/pages/menu/components/product-card.vue'
+import { useCatalogStore } from '@/stores/catalog'
+import type { RitualId } from '@/common/types/catalog'
 
-const session = useSessionStore()
-const loading = ref(false)
-const errorText = ref('')
-const bundle = ref<MemberPayload | null>(null)
+type RetailChip = 'all' | 'gift' | 'nourish'
 
-const progress = computed(() => {
-  if (!bundle.value) return 0
-  return Math.min(100, (bundle.value.profile.growth / 5000) * 100)
+const catalog = useCatalogStore()
+const chip = ref<RetailChip>('all')
+
+const retailProducts = computed(() => catalog.products.filter((item) => item.cat === 'retail'))
+
+const list = computed(() => {
+  if (chip.value === 'all') return retailProducts.value
+  return retailProducts.value.filter((item) => item.ritual === chip.value)
 })
-
-async function load() {
-  loading.value = true
-  errorText.value = ''
-  try {
-    if (!session.loggedIn) {
-      throw new Error('登录后查看会员资料')
-    }
-    bundle.value = await getMemberBundle()
-  } catch (error) {
-    errorText.value = error instanceof Error ? error.message : '加载失败'
-  } finally {
-    loading.value = false
-  }
-}
 
 onShow(() => {
-  void load()
+  void catalog.ensureLoaded()
 })
+
+function setChip(next: RetailChip) {
+  chip.value = next
+}
+
+function ritualOf(id: RitualId) {
+  return catalog.rituals.find((item) => item.id === id)?.title ?? id
+}
 </script>
 
 <template>
-  <SoorakChrome title="会员">
-    <view v-if="loading" class="mp-empty">
+  <!-- 原会员路由 = 选物陈列 -->
+  <SoorakChrome title="选物">
+    <view v-if="catalog.loading" class="mp-empty">
       <text class="t-caption">加载中</text>
     </view>
-    <view v-else-if="errorText" class="mp-empty">
-      <text class="t-caption">{{ errorText }}</text>
-      <SoorakButton @click="load">重试</SoorakButton>
+    <view v-else-if="catalog.errorText" class="mp-empty">
+      <text class="t-caption">{{ catalog.errorText }}</text>
+      <SoorakButton @click="catalog.ensureLoaded()">重试</SoorakButton>
     </view>
-    <view v-else-if="bundle" class="page-member page-pad">
-      <view class="member-hero">
-        <text class="t-label member-hero__label">SOORAK Club</text>
-        <text class="member-hero__name">{{ bundle.profile.name }}</text>
-        <text class="member-hero__tier">{{ bundle.profile.tier }}</text>
-        <text class="member-no">No. {{ bundle.profile.memberNo }}</text>
-        <view class="member-bar">
-          <view class="member-bar__fill" :style="{ width: `${progress}%` }" />
-        </view>
-        <text class="t-caption member-hero__cap">距 {{ bundle.profile.nextTier }} 还需 {{ bundle.profile.nextNeed }} 成长值</text>
-        <view class="member-stats">
-          <view>
-            <text class="member-stats__k">余额</text>
-            <text class="member-stats__v">¥{{ bundle.profile.balance }}</text>
-          </view>
-          <view>
-            <text class="member-stats__k">积分</text>
-            <text class="member-stats__v">{{ bundle.profile.points }}</text>
-          </view>
-          <view>
-            <text class="member-stats__k">成长值</text>
-            <text class="member-stats__v">{{ bundle.profile.growth }}</text>
-          </view>
-        </view>
+    <view v-else class="page-select page-pad">
+      <view class="select-head">
+        <text class="t-section">节礼与风物</text>
+        <text class="t-caption">把门店的仪式，带回家</text>
       </view>
 
-      <view class="member-actions">
-        <SoorakButton block @click="session.goTab('/pages/menu/index')">会员价去点单</SoorakButton>
-      </view>
-
-      <text class="t-section block-title">等级权益</text>
-      <view class="tier-list">
-        <view v-for="tier in bundle.tiers" :key="tier.id" class="tier-card">
-          <text class="tier-card__name">{{ tier.name }}</text>
-          <text class="t-caption">{{ tier.threshold === 0 ? '注册即享' : `成长值 ${tier.threshold}` }}</text>
-          <view class="tier-card__perks">
-            <view v-for="perk in tier.perks" :key="perk" class="tier-card__perk">
-              <view class="tier-card__dot" />
-              <text>{{ perk }}</text>
-            </view>
-          </view>
+      <scroll-view scroll-x class="menu-chips" :show-scrollbar="false">
+        <view class="menu-chip" :class="{ 'is-on': chip === 'all' }" @click="setChip('all')">全部</view>
+        <view class="menu-chip" :class="{ 'is-on': chip === 'gift' }" @click="setChip('gift')">
+          {{ ritualOf('gift') }}
         </view>
+        <view class="menu-chip" :class="{ 'is-on': chip === 'nourish' }" @click="setChip('nourish')">
+          {{ ritualOf('nourish') }}
+        </view>
+      </scroll-view>
+
+      <view v-if="!list.length" class="mp-empty">
+        <text class="t-caption">今日风物暂未上架，明日再遇。</text>
+      </view>
+      <view v-else class="select-list">
+        <ProductCard v-for="item in list" :key="item.id" :product="item" />
       </view>
     </view>
   </SoorakChrome>
 </template>
 
 <style lang="scss" scoped>
-.member-hero {
-  background: $mp-ink;
-  color: $mp-paper;
-  border-radius: 24rpx;
-  padding: 36rpx 32rpx;
+.select-head {
+  margin-bottom: 8rpx;
 }
 
-.member-hero__label {
-  color: rgba(247, 244, 238, 0.45);
-}
-
-.member-hero__name {
+.select-head .t-caption {
   display: block;
-  margin: 16rpx 0 8rpx;
-  font-family: "Songti SC", "Noto Serif SC", serif;
-  font-size: 56rpx;
-  font-weight: 500;
+  margin-top: 8rpx;
 }
 
-.member-hero__tier {
-  color: $mp-brass-soft;
-  font-size: 26rpx;
+.menu-chips {
+  white-space: nowrap;
+  padding: 16rpx 0 8rpx;
+  width: 100%;
 }
 
-.member-no {
-  display: block;
-  margin-top: 20rpx;
-  font-family: "Songti SC", "Noto Serif SC", serif;
-  letter-spacing: 0.08em;
-  opacity: 0.7;
-}
-
-.member-bar {
-  margin-top: 32rpx;
-  height: 4rpx;
-  background: rgba(255, 255, 255, 0.12);
+.menu-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 64rpx;
+  padding: 0 24rpx;
+  margin-right: 16rpx;
   border-radius: 999rpx;
-  overflow: hidden;
-}
-
-.member-bar__fill {
-  height: 100%;
-  background: $mp-brass;
-}
-
-.member-hero__cap {
-  display: block;
-  margin-top: 16rpx;
-  color: rgba(247, 244, 238, 0.5);
-}
-
-.member-stats {
-  margin-top: 32rpx;
-  padding-top: 28rpx;
-  border-top: 1rpx solid rgba(255, 255, 255, 0.12);
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16rpx;
-}
-
-.member-stats__k {
-  display: block;
-  font-size: 20rpx;
-  letter-spacing: 0.1em;
-  color: rgba(247, 244, 238, 0.45);
-  margin-bottom: 8rpx;
-}
-
-.member-stats__v {
-  font-family: "Songti SC", "Noto Serif SC", serif;
-  font-size: 36rpx;
-  font-weight: 500;
-}
-
-.member-actions {
-  margin: 32rpx 0 16rpx;
-}
-
-.block-title {
-  display: block;
-  margin: 40rpx 0 24rpx;
-}
-
-.tier-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20rpx;
-}
-
-.tier-card {
-  padding: 28rpx;
-  background: $mp-cloud;
-  border-radius: 16rpx;
-}
-
-.tier-card__name {
-  display: block;
-  margin-bottom: 8rpx;
-  font-size: 30rpx;
-  font-weight: 500;
-}
-
-.tier-card__perks {
-  margin-top: 20rpx;
-  display: flex;
-  flex-direction: column;
-  gap: 12rpx;
-}
-
-.tier-card__perk {
-  display: flex;
-  align-items: flex-start;
-  gap: 12rpx;
   font-size: 24rpx;
   color: $mp-text-2;
+  box-shadow: inset 0 0 0 1rpx $mp-border;
 }
 
-.tier-card__dot {
-  width: 8rpx;
-  height: 8rpx;
-  margin-top: 14rpx;
-  border-radius: 50%;
-  background: $mp-brass;
-  flex-shrink: 0;
+.menu-chip.is-on {
+  background: $mp-ink;
+  color: $mp-paper;
+  box-shadow: none;
+}
+
+.select-list {
+  padding-bottom: 16rpx;
 }
 </style>

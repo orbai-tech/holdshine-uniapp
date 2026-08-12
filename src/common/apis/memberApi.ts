@@ -16,16 +16,14 @@ function placeholderProfile(name: string, memberNo: string): MemberProfile {
   }
 }
 
-export async function getMemberBundle(): Promise<MemberPayload> {
-  const user = await fetchAuthProfile()
-  return {
-    profile: placeholderProfile(user.nickname, user.memberNo),
-    // TODO(FE-NEED-002)
-    tiers: memberTiers,
-  }
+export function getMemberProfile(): Promise<MemberProfile> {
+  return fetchAuthProfile().then((user) => placeholderProfile(user.nickname, user.memberNo))
 }
 
-export async function getMemberProfile(): Promise<MemberProfile> {
-  const user = await fetchAuthProfile()
-  return placeholderProfile(user.nickname, user.memberNo)
+export function getMemberBundle(): Promise<MemberPayload> {
+  return getMemberProfile().then((profile) => ({
+    profile,
+    // TODO(FE-NEED-002)
+    tiers: memberTiers,
+  }))
 }

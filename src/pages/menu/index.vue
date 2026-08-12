@@ -10,14 +10,31 @@ import { useSessionStore } from '@/stores/session'
 const catalog = useCatalogStore()
 const session = useSessionStore()
 
+const drinkCategories = computed(() =>
+  catalog.categories.filter((category) => !category.name.includes('零售')),
+)
+
+const drinkProducts = computed(() => catalog.products.filter((item) => item.cat !== 'retail'))
+
 const list = computed(() => {
   const active = session.categoryId
-  if (active == null) return catalog.products
-  return catalog.products.filter((item) => item.categoryId === active)
+  if (active == null) return drinkProducts.value
+  const retailCategory = catalog.categories.some(
+    (category) => category.id === active && category.name.includes('零售'),
+  )
+  if (retailCategory) return drinkProducts.value
+  return drinkProducts.value.filter((item) => item.categoryId === active)
 })
 
 onShow(() => {
-  void catalog.ensureLoaded()
+  void catalog.ensureLoaded().then(() => {
+    const active = session.categoryId
+    if (active == null) return
+    const retailOn = catalog.categories.some(
+      (category) => category.id === active && category.name.includes('零售'),
+    )
+    if (retailOn) session.setCategoryId(null)
+  })
 })
 
 function setFilter(id: number | null) {
@@ -46,7 +63,7 @@ function setFilter(id: number | null) {
       <scroll-view scroll-x class="menu-chips" :show-scrollbar="false">
         <view class="menu-chip" :class="{ 'is-on': session.categoryId == null }" @click="setFilter(null)">全部</view>
         <view
-          v-for="category in catalog.categories"
+          v-for="category in drinkCategories"
           :key="category.id"
           class="menu-chip"
           :class="{ 'is-on': session.categoryId === category.id }"
