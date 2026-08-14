@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "咖啡点单系统 API",
-    "description": "已实现接口已从后端 FastAPI 同步（路径、入参、出参以后端代码为准，摘要带【已实现】）。\n未标注的路径来自历史规划，可能尚未落地，不要按规划字段对接已实现接口。\n\n依据《项目需求总结.txt》与《功能需求细化.md》。\n\n- 管理后台：`/api/admin/*`（超管 / 店长）\n- 小程序：`/api/mp/*`（顾客 / 店员，按角色鉴权）\n- HTTP 恒为 200；业务成败只看 body 的 `code` / `is_success`\n- 业务码与 HTTP 分离（禁止把 200/400/401/403/429 等当业务码）：\n  - 成功 `20000`\n  - 系统错误 `40000`；未登录 `40100`；Token过期 `40101`；Token无效 `40102`；登录环境变化 `40103`\n  - 无权限 `40300`；用户禁用 `40301`；参数错误 `41000`；验证码错误 `41001`；登录过于频繁 `42900`\n- 完整枚举见 components.schemas.BusinessCode\n- P0=堂食闭环，P1=商城/卡券，P2=外卖预留\n",
+    "description": "已实现接口已从后端 FastAPI 同步（路径、入参、出参以后端代码为准，摘要带【已实现】）。\n未标注的路径来自历史规划，可能尚未落地，不要按规划字段对接已实现接口。\n\n依据《项目需求总结.txt》与《功能需求细化.md》。\n\n- 管理后台：`/api/admin/*`（超管 / 店长）\n- 小程序：`/api/mp/*`（顾客 / 店员，按角色鉴权）\n- HTTP 恒为 200；业务成败只看 body 的 `code` / `is_success`\n- 业务码与 HTTP 分离（禁止把 200/400/401/403/429 等当业务码）：\n  - 成功 `0`（历史草稿偶见 `20000`）\n  - 系统错误 `40000`；未登录 `40100`；Token过期 `40101`；Token无效 `40102`；登录环境变化 `40103`\n  - 无权限 `40300`；用户禁用 `40301`；参数错误 `41000`；验证码错误 `41001`；登录过于频繁 `42900`\n- 完整枚举见 components.schemas.BusinessCode\n- P0=堂食闭环，P1=商城/卡券，P2=外卖预留\n\n**前端联调：状态枚举对照**见文档站 `/plans/enums`（order_status / table_status / refund_status / coupon_status / staff_kind 等）。卡券接口见 tags：`admin-coupons`、`mp-coupons`。\n\n**管理端权限**：未标注「仅超管」的 `/api/admin/*` 接口默认【管理端通用】（超管看全部，分店管理员仅本店）。礼品商城 `/api/admin/mall/*`、新建/停用门店为【仅超管】。完整说明见 `/plans/enums`。\n**状态枚举**：order_status / table_status / refund_status / coupon_status / staff_kind 等见 `/plans/enums`。卡券 tags：`admin-coupons`、`mp-coupons`。\n",
     "version": "1.0.0",
     "contact": {
       "name": "Coffee API"
@@ -10,12 +10,12 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:8000",
-      "description": "本机业务后端"
+      "url": "http://192.168.10.49:8000",
+      "description": "局域网业务后端"
     },
     {
-      "url": "http://192.168.10.186:8000",
-      "description": "局域网业务后端"
+      "url": "http://127.0.0.1:8000",
+      "description": "本机业务后端"
     }
   ],
   "tags": [
@@ -265,7 +265,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【公开】无需登录"
       }
     },
     "/api/admin/auth/me": {
@@ -315,7 +315,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可（操作本人账号）"
       }
     },
     "/api/admin/auth/logout": {
@@ -365,7 +365,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可（操作本人账号）"
       }
     },
     "/api/admin/auth/password": {
@@ -425,7 +425,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可（操作本人账号）"
       }
     },
     "/api/admin/admins/{admin_id}/reset-password": {
@@ -490,6 +490,7 @@
           "admin-stores"
         ],
         "summary": "门店列表",
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管看全部；分店管理员仅本店。",
         "operationId": "list_stores_api_admin_stores_get",
         "parameters": [
           {
@@ -587,14 +588,14 @@
               }
             }
           }
-        },
-        "description": "【已实现·以后端代码为准】"
+        }
       },
       "post": {
         "tags": [
           "admin-stores"
         ],
-        "summary": "新建门店",
+        "summary": "新建门店（仅超管）",
+        "description": "【已实现·以后端代码为准】\n\n【仅超管】分店管理员不可新建门店。",
         "operationId": "create_store_api_admin_stores_post",
         "parameters": [
           {
@@ -645,8 +646,7 @@
               }
             }
           }
-        },
-        "description": "【已实现·以后端代码为准】"
+        }
       }
     },
     "/api/admin/stores/{store_id}": {
@@ -655,6 +655,7 @@
           "admin-stores"
         ],
         "summary": "门店详情",
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】须有权访问该门店。",
         "operationId": "get_store_api_admin_stores__store_id__get",
         "parameters": [
           {
@@ -704,14 +705,14 @@
               }
             }
           }
-        },
-        "description": "【已实现·以后端代码为准】"
+        }
       },
       "put": {
         "tags": [
           "admin-stores"
         ],
         "summary": "编辑门店",
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】须有权访问该门店；改门店编号仅超管。",
         "operationId": "update_store_api_admin_stores__store_id__put",
         "parameters": [
           {
@@ -771,14 +772,14 @@
               }
             }
           }
-        },
-        "description": "【已实现·以后端代码为准】"
+        }
       },
       "delete": {
         "tags": [
           "admin-stores"
         ],
-        "summary": "停用门店",
+        "summary": "停用门店（仅超管）",
+        "description": "【已实现·以后端代码为准】\n\n【仅超管】分店管理员不可停用门店。",
         "operationId": "delete_store_api_admin_stores__store_id__delete",
         "parameters": [
           {
@@ -828,8 +829,7 @@
               }
             }
           }
-        },
-        "description": "【已实现·以后端代码为准】"
+        }
       }
     },
     "/api/admin/stores/{store_id}/business-hours": {
@@ -986,6 +986,7 @@
           "admin-stores"
         ],
         "summary": "暂停或恢复接单",
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】须有权访问该门店。",
         "operationId": "set_accepting_api_admin_stores__store_id__accepting_post",
         "parameters": [
           {
@@ -1045,8 +1046,7 @@
               }
             }
           }
-        },
-        "description": "【已实现·以后端代码为准】"
+        }
       }
     },
     "/api/admin/admins": {
@@ -1697,7 +1697,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       },
       "post": {
         "tags": [
@@ -1755,7 +1755,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/tables/{table_id}/qrcode": {
@@ -1814,7 +1814,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/tables/{table_id}": {
@@ -1989,7 +1989,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/orders/{order_id}": {
@@ -2048,7 +2048,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/orders/{order_id}/status": {
@@ -2107,7 +2107,7 @@
         "tags": [
           "admin-mall"
         ],
-        "summary": "礼品列表",
+        "summary": "礼品列表（仅超管）",
         "operationId": "list_products_api_admin_mall_products_get",
         "parameters": [
           {
@@ -2222,13 +2222,13 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【仅超管】分店管理员不可访问公司级礼品商城"
       },
       "post": {
         "tags": [
           "admin-mall"
         ],
-        "summary": "新建礼品",
+        "summary": "新建礼品（仅超管）",
         "operationId": "create_product_api_admin_mall_products_post",
         "parameters": [
           {
@@ -2280,7 +2280,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【仅超管】分店管理员不可访问公司级礼品商城"
       }
     },
     "/api/admin/mall/products/{product_id}": {
@@ -2288,7 +2288,7 @@
         "tags": [
           "admin-mall"
         ],
-        "summary": "礼品详情",
+        "summary": "礼品详情（仅超管）",
         "operationId": "get_product_api_admin_mall_products__product_id__get",
         "parameters": [
           {
@@ -2339,13 +2339,13 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【仅超管】分店管理员不可访问公司级礼品商城"
       },
       "put": {
         "tags": [
           "admin-mall"
         ],
-        "summary": "编辑礼品",
+        "summary": "编辑礼品（仅超管）",
         "operationId": "update_product_api_admin_mall_products__product_id__put",
         "parameters": [
           {
@@ -2406,13 +2406,13 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【仅超管】分店管理员不可访问公司级礼品商城"
       },
       "delete": {
         "tags": [
           "admin-mall"
         ],
-        "summary": "删除礼品",
+        "summary": "删除礼品（仅超管）",
         "operationId": "delete_product_api_admin_mall_products__product_id__delete",
         "parameters": [
           {
@@ -2463,7 +2463,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【仅超管】分店管理员不可访问公司级礼品商城"
       }
     },
     "/api/admin/coupons": {
@@ -2471,24 +2471,124 @@
         "tags": [
           "admin-coupons"
         ],
-        "summary": "优惠券模板列表（固定规则：满减/折扣）",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "summary": "优惠券模板列表",
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管看全部；分店管理员看本店范围模板。",
+        "operationId": "list_templates_api_admin_coupons_get",
         "parameters": [
           {
-            "$ref": "#/components/parameters/OptionalStoreId"
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "coupon_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Coupon Type"
+            }
+          },
+          {
+            "name": "audience_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Audience Type"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Keyword"
+            }
+          },
+          {
+            "name": "store_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Store Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseCouponTemplateList"
+                  "$ref": "#/components/schemas/application__common__schema__response_schema__BaseResponse_CouponTemplateListRes___1"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -2500,9 +2600,24 @@
           "admin-coupons"
         ],
         "summary": "创建优惠券模板",
-        "security": [
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】分店管理员创建的模板归属本店。",
+        "operationId": "create_template_api_admin_coupons_post",
+        "parameters": [
           {
-            "bearerAuth": []
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "requestBody": {
@@ -2510,18 +2625,28 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CouponTemplateCreateRequest"
+                "$ref": "#/components/schemas/CouponTemplateUpsertReq"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseCouponTemplate"
+                  "$ref": "#/components/schemas/BaseResponse_CouponTemplateRes_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -2530,16 +2655,13 @@
       }
     },
     "/api/admin/coupons/{coupon_id}": {
-      "put": {
+      "get": {
         "tags": [
           "admin-coupons"
         ],
-        "summary": "编辑优惠券模板",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "summary": "优惠券模板详情",
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】须有权访问该模板。",
+        "operationId": "get_template_api_admin_coupons__coupon_id__get",
         "parameters": [
           {
             "name": "coupon_id",
@@ -2547,7 +2669,80 @@
             "required": true,
             "schema": {
               "type": "integer",
-              "format": "int64"
+              "title": "Coupon Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse_CouponTemplateDetailRes_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "admin-coupons"
+        ],
+        "summary": "编辑优惠券模板",
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】须有权访问该模板。",
+        "operationId": "update_template_api_admin_coupons__coupon_id__put",
+        "parameters": [
+          {
+            "name": "coupon_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Coupon Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -2556,18 +2751,28 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CouponTemplateCreateRequest"
+                "$ref": "#/components/schemas/CouponTemplateUpsertReq"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseCouponTemplate"
+                  "$ref": "#/components/schemas/BaseResponse_CouponTemplateRes_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -2578,12 +2783,9 @@
         "tags": [
           "admin-coupons"
         ],
-        "summary": "停用/删除优惠券模板",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "summary": "停用优惠券模板",
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】须有权访问该模板。",
+        "operationId": "disable_template_api_admin_coupons__coupon_id__delete",
         "parameters": [
           {
             "name": "coupon_id",
@@ -2591,17 +2793,43 @@
             "required": true,
             "schema": {
               "type": "integer",
-              "format": "int64"
+              "title": "Coupon Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseNull"
+                  "$ref": "#/components/schemas/BaseResponse_NoneType_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -4694,12 +4922,8 @@
         "tags": [
           "mp-coupons"
         ],
-        "summary": "可领/可用优惠券",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "summary": "可领优惠券",
+        "operationId": "list_available_api_mp_coupons_available_get",
         "parameters": [
           {
             "name": "store_id",
@@ -4707,22 +4931,51 @@
             "required": true,
             "schema": {
               "type": "integer",
-              "format": "int64"
+              "description": "当前门店",
+              "title": "Store Id"
+            },
+            "description": "当前门店"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseCouponTemplateList"
+                  "$ref": "#/components/schemas/application__common__schema__response_schema__BaseResponse_CouponTemplateListRes___2"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
           }
-        }
+        },
+        "description": "【已实现·以后端代码为准】"
       }
     },
     "/api/mp/coupons/claim": {
@@ -4731,9 +4984,23 @@
           "mp-coupons"
         ],
         "summary": "领取优惠券",
-        "security": [
+        "operationId": "claim_coupon_api_mp_coupons_claim_post",
+        "parameters": [
           {
-            "bearerAuth": []
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "requestBody": {
@@ -4741,32 +5008,34 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": [
-                  "coupon_template_id"
-                ],
-                "properties": {
-                  "coupon_template_id": {
-                    "type": "integer",
-                    "format": "int64"
-                  }
-                }
+                "$ref": "#/components/schemas/CouponClaimReq"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseNull"
+                  "$ref": "#/components/schemas/BaseResponse_MyCouponRes_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
           }
-        }
+        },
+        "description": "【已实现·以后端代码为准】"
       }
     },
     "/api/mp/coupons/mine": {
@@ -4775,23 +5044,66 @@
           "mp-coupons"
         ],
         "summary": "我的优惠券",
-        "security": [
+        "operationId": "list_mine_api_mp_coupons_mine_get",
+        "parameters": [
           {
-            "bearerAuth": []
+            "name": "coupon_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "1未使用、2锁定、3已使用、4已过期；空=除已作废外全部",
+              "title": "Coupon Status"
+            },
+            "description": "1未使用、2锁定、3已使用、4已过期；空=除已作废外全部"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseMyCouponList"
+                  "$ref": "#/components/schemas/BaseResponse_MyCouponListRes_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
           }
-        }
+        },
+        "description": "【已实现·以后端代码为准】"
       }
     },
     "/api/mp/takeaway/quote": {
@@ -4889,6 +5201,7 @@
           "admin-stores"
         ],
         "summary": "门店员工列表",
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】须有权访问该门店。",
         "operationId": "list_store_staff_api_admin_stores__store_id__staff_get",
         "parameters": [
           {
@@ -4938,8 +5251,7 @@
               }
             }
           }
-        },
-        "description": "【已实现·以后端代码为准】"
+        }
       }
     },
     "/api/admin/coffee/categories": {
@@ -5005,7 +5317,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       },
       "post": {
         "tags": [
@@ -5063,7 +5375,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/coffee/categories/{category_id}": {
@@ -5132,7 +5444,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       },
       "delete": {
         "tags": [
@@ -5189,7 +5501,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/coffee/categories/{category_id}/products": {
@@ -5258,7 +5570,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/coffee/categories/{category_id}/products/{product_id}": {
@@ -5326,7 +5638,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/coffee/products": {
@@ -5465,7 +5777,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       },
       "post": {
         "tags": [
@@ -5523,7 +5835,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/coffee/products/{product_id}": {
@@ -5582,7 +5894,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       },
       "put": {
         "tags": [
@@ -5649,7 +5961,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       },
       "delete": {
         "tags": [
@@ -5706,7 +6018,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/coffee/products/{product_id}/image": {
@@ -5775,7 +6087,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/refunds": {
@@ -5898,7 +6210,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/refunds/{refund_id}": {
@@ -5957,7 +6269,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/refunds/{refund_id}/approve": {
@@ -6016,7 +6328,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/refunds/{refund_id}/reject": {
@@ -6085,7 +6397,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/mp/auth/wx-precheck": {
@@ -7431,7 +7743,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/mall/categories": {
@@ -7481,13 +7793,13 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【仅超管】分店管理员不可访问公司级礼品商城"
       },
       "post": {
         "tags": [
           "admin-mall"
         ],
-        "summary": "新建礼品分类",
+        "summary": "新建礼品分类（仅超管）",
         "operationId": "create_category_api_admin_mall_categories_post",
         "parameters": [
           {
@@ -7539,7 +7851,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【仅超管】分店管理员不可访问公司级礼品商城"
       }
     },
     "/api/admin/mall/categories/{category_id}": {
@@ -7547,7 +7859,7 @@
         "tags": [
           "admin-mall"
         ],
-        "summary": "编辑礼品分类",
+        "summary": "编辑礼品分类（仅超管）",
         "operationId": "update_category_api_admin_mall_categories__category_id__put",
         "parameters": [
           {
@@ -7608,13 +7920,13 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【仅超管】分店管理员不可访问公司级礼品商城"
       },
       "delete": {
         "tags": [
           "admin-mall"
         ],
-        "summary": "删除礼品分类",
+        "summary": "删除礼品分类（仅超管）",
         "operationId": "delete_category_api_admin_mall_categories__category_id__delete",
         "parameters": [
           {
@@ -7665,7 +7977,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【仅超管】分店管理员不可访问公司级礼品商城"
       }
     },
     "/api/admin/mall/products/{product_id}/image": {
@@ -7673,7 +7985,7 @@
         "tags": [
           "admin-mall"
         ],
-        "summary": "上传礼品轮播图（追加，最多9张）",
+        "summary": "上传礼品轮播图（追加，最多9张）（仅超管）",
         "operationId": "upload_product_image_api_admin_mall_products__product_id__image_post",
         "parameters": [
           {
@@ -7734,7 +8046,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【仅超管】分店管理员不可访问公司级礼品商城"
       }
     },
     "/api/admin/mall/products/{product_id}/images/{image_id}": {
@@ -7742,7 +8054,7 @@
         "tags": [
           "admin-mall"
         ],
-        "summary": "删除礼品轮播图",
+        "summary": "删除礼品轮播图（仅超管）",
         "operationId": "delete_product_image_api_admin_mall_products__product_id__images__image_id__delete",
         "parameters": [
           {
@@ -7802,7 +8114,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【仅超管】分店管理员不可访问公司级礼品商城"
       }
     },
     "/api/admin/mall/staff": {
@@ -7810,7 +8122,7 @@
         "tags": [
           "admin-mall"
         ],
-        "summary": "商城人员列表",
+        "summary": "商城人员列表（仅超管）",
         "operationId": "list_mall_staff_api_admin_mall_staff_get",
         "parameters": [
           {
@@ -7907,13 +8219,13 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【仅超管】分店管理员不可访问公司级礼品商城"
       },
       "post": {
         "tags": [
           "admin-mall"
         ],
-        "summary": "新增商城人员",
+        "summary": "新增商城人员（仅超管）",
         "operationId": "create_mall_staff_api_admin_mall_staff_post",
         "parameters": [
           {
@@ -7965,7 +8277,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【仅超管】分店管理员不可访问公司级礼品商城"
       }
     },
     "/api/admin/mall/staff/{staff_id}": {
@@ -7973,7 +8285,7 @@
         "tags": [
           "admin-mall"
         ],
-        "summary": "更新商城人员",
+        "summary": "更新商城人员（仅超管）",
         "operationId": "update_mall_staff_api_admin_mall_staff__staff_id__put",
         "parameters": [
           {
@@ -8034,7 +8346,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【仅超管】分店管理员不可访问公司级礼品商城"
       }
     },
     "/api/admin/orders/{order_id}/restock": {
@@ -8110,7 +8422,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/returns": {
@@ -8215,7 +8527,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/returns/{return_id}/approve": {
@@ -8274,7 +8586,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/returns/{return_id}/reject": {
@@ -8343,7 +8655,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/returns/{return_id}/arrive": {
@@ -8402,7 +8714,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/returns/{return_id}/inspect": {
@@ -8471,7 +8783,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/admin/returns/{return_id}/reship": {
@@ -8540,7 +8852,7 @@
             }
           }
         },
-        "description": "【已实现·以后端代码为准】"
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
       }
     },
     "/api/mp/mall": {
@@ -12181,6 +12493,577 @@
         },
         "description": "【已实现·以后端代码为准】"
       }
+    },
+    "/api/admin/coupons/issue/preview": {
+      "post": {
+        "tags": [
+          "admin-coupons"
+        ],
+        "summary": "定向发券预估人数",
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】按筛选条件预估可发券人数；分店管理员仅本店范围。",
+        "operationId": "preview_issue_api_admin_coupons_issue_preview_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CouponIssuePreviewReq"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse_CouponIssuePreviewRes_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/coupons/{coupon_id}/issue": {
+      "post": {
+        "tags": [
+          "admin-coupons"
+        ],
+        "summary": "定向发券",
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】分店管理员仅可对本店范围发券。",
+        "operationId": "issue_coupons_api_admin_coupons__coupon_id__issue_post",
+        "parameters": [
+          {
+            "name": "coupon_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Coupon Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CouponIssueReq"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse_CouponIssueRes_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/coupon-writeoffs": {
+      "get": {
+        "tags": [
+          "admin-coupons"
+        ],
+        "summary": "优惠券核销记录",
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管可按门店筛选；分店管理员仅本店核销记录。",
+        "operationId": "list_writeoffs_api_admin_coupon_writeoffs_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Page Size"
+            }
+          },
+          {
+            "name": "store_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Store Id"
+            }
+          },
+          {
+            "name": "writeoff_channel",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Writeoff Channel"
+            }
+          },
+          {
+            "name": "result_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Result Status"
+            }
+          },
+          {
+            "name": "coupon_no",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Coupon No"
+            }
+          },
+          {
+            "name": "order_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Order Id"
+            }
+          },
+          {
+            "name": "date_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse_PageResult_CouponWriteoffRes__"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/customers": {
+      "get": {
+        "tags": [
+          "admin-customers"
+        ],
+        "summary": "顾客列表（定向发券选人）",
+        "operationId": "list_customers_api_admin_customers_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Page Size"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "手机号/昵称",
+              "title": "Keyword"
+            },
+            "description": "手机号/昵称"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse_PageResult_AdminCustomerRes__"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
+      }
+    },
+    "/api/admin/member-levels": {
+      "get": {
+        "tags": [
+          "admin-members"
+        ],
+        "summary": "会员等级列表（券模板选人群）",
+        "operationId": "list_member_levels_api_admin_member_levels_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse_MemberLevelListRes_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "description": "【已实现·以后端代码为准】\n\n【管理端通用】超管与分店管理员均可调用；超管看全部，分店管理员仅本店数据（服务端强制隔离）"
+      }
+    },
+    "/api/mp/coupons/mine/{customer_coupon_id}": {
+      "get": {
+        "tags": [
+          "mp-coupons"
+        ],
+        "summary": "我的优惠券详情",
+        "operationId": "get_mine_api_mp_coupons_mine__customer_coupon_id__get",
+        "parameters": [
+          {
+            "name": "customer_coupon_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Customer Coupon Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse_MyCouponDetailRes_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "description": "【已实现·以后端代码为准】"
+      },
+      "delete": {
+        "tags": [
+          "mp-coupons"
+        ],
+        "summary": "删除未使用卡券（作废）",
+        "operationId": "discard_mine_api_mp_coupons_mine__customer_coupon_id__delete",
+        "parameters": [
+          {
+            "name": "customer_coupon_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Customer Coupon Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse_NoneType_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "description": "【已实现·以后端代码为准】"
+      }
     }
   },
   "components": {
@@ -12326,9 +13209,9 @@
       },
       "BusinessCode": {
         "type": "string",
-        "description": "业务状态码（写在 JSON body.code，不是 HTTP Status）。\n对照：HTTP 200→业务 20000；HTTP 400→40000；HTTP 401→40100；HTTP 403→40300；HTTP 429→42900。\n禁止直接使用 0/200/400/401/403/429 等作为 code。\n",
+        "description": "业务状态码（写在 JSON body.code，不是 HTTP Status）。成功为 0；错误码见 HttpErrorCodeEnum。",
         "enum": [
-          "20000",
+          "0",
           "40000",
           "40100",
           "40101",
@@ -12336,6 +13219,7 @@
           "40103",
           "40300",
           "40301",
+          "40400",
           "41000",
           "41001",
           "42900"
@@ -12381,12 +13265,12 @@
                 "$ref": "#/components/schemas/BusinessCode"
               }
             ],
-            "description": "业务状态码（非 HTTP）。成功固定 20000。",
-            "example": "20000"
+            "description": "业务状态码（非 HTTP）。成功为 0。",
+            "example": "0"
           },
           "is_success": {
             "type": "boolean",
-            "description": "true 表示业务成功（通常 code=20000）；false 表示业务失败",
+            "description": "true 表示业务成功（通常 code=0）；false 表示业务失败",
             "example": true
           },
           "message": {
@@ -15093,7 +15977,8 @@
           },
           "account_type": {
             "type": "integer",
-            "title": "Account Type"
+            "title": "Account Type",
+            "description": "1总店/超管、2分店普通管理员"
           },
           "store_id": {
             "anyOf": [
@@ -17229,6 +18114,7 @@
             "maximum": 4.0,
             "minimum": 1.0,
             "title": "Service Mode",
+            "description": "1堂食、3外卖、4礼品快递",
             "default": 1
           },
           "table_id": {
@@ -18413,7 +19299,8 @@
           },
           "table_status": {
             "type": "integer",
-            "title": "Table Status"
+            "title": "Table Status",
+            "description": "0停用、1空闲、2用餐中、3待清台"
           },
           "occupied": {
             "type": "boolean",
@@ -18472,7 +19359,8 @@
           },
           "table_status": {
             "type": "integer",
-            "title": "Table Status"
+            "title": "Table Status",
+            "description": "0停用、1空闲、2用餐中、3待清台"
           }
         },
         "additionalProperties": false,
@@ -18535,7 +19423,8 @@
                 "type": "null"
               }
             ],
-            "title": "Account Kind"
+            "title": "Account Kind",
+            "description": "staff=门店店员；mall_staff=商城人员（顾客端可为空）"
           },
           "wechat_openid": {
             "anyOf": [
@@ -18681,6 +19570,7 @@
           "login_role": {
             "type": "string",
             "title": "Login Role",
+            "description": "customer | staff",
             "default": "customer"
           },
           "wx_phone_code": {
@@ -18734,6 +19624,7 @@
           "login_role": {
             "type": "string",
             "title": "Login Role",
+            "description": "customer | staff",
             "default": "customer"
           }
         },
@@ -19028,11 +19919,13 @@
           },
           "service_mode": {
             "type": "integer",
-            "title": "Service Mode"
+            "title": "Service Mode",
+            "description": "1堂食、3外卖、4礼品快递"
           },
           "order_status": {
             "type": "integer",
-            "title": "Order Status"
+            "title": "Order Status",
+            "description": "1待支付、2待接单、3制作中、4待取餐、5已完成、6已取消、7退款中、8已退款、9已拒单、10待发货、11已发货、12已签收"
           },
           "product_amount": {
             "type": "string",
@@ -19511,7 +20404,8 @@
           },
           "refund_status": {
             "type": "integer",
-            "title": "Refund Status"
+            "title": "Refund Status",
+            "description": "1待店员审核、2已拒绝、3退款中、4成功、5失败、6已撤销、7待店主审核"
           },
           "reason": {
             "anyOf": [
@@ -19548,11 +20442,13 @@
           },
           "before_order_status": {
             "type": "integer",
-            "title": "Before Order Status"
+            "title": "Before Order Status",
+            "description": "申请前订单状态，拒绝/撤销时回滚用"
           },
           "applicant_type": {
             "type": "integer",
-            "title": "Applicant Type"
+            "title": "Applicant Type",
+            "description": "1顾客、2管理端、3店员"
           },
           "reviewer_type": {
             "anyOf": [
@@ -19563,7 +20459,8 @@
                 "type": "null"
               }
             ],
-            "title": "Reviewer Type"
+            "title": "Reviewer Type",
+            "description": "2管理端、3店员"
           },
           "reviewed_at": {
             "anyOf": [
@@ -19612,6 +20509,7 @@
           "refund_phase": {
             "type": "integer",
             "title": "Refund Phase",
+            "description": "1发货前仅退款、2已发货待退货、3货已签收待退货后退款",
             "default": 1
           }
         },
@@ -19638,7 +20536,8 @@
             "type": "integer",
             "maximum": 9.0,
             "minimum": 2.0,
-            "title": "Order Status"
+            "title": "Order Status",
+            "description": "目标状态：2待接单→3制作中/9拒单；3→4待取餐；4→5已完成"
           },
           "remark": {
             "anyOf": [
@@ -23592,11 +24491,13 @@
           },
           "return_type": {
             "type": "integer",
-            "title": "Return Type"
+            "title": "Return Type",
+            "description": "1发货前取消、2运输中拦截、3顾客拒收、4售后退货"
           },
           "return_status": {
             "type": "integer",
-            "title": "Return Status"
+            "title": "Return Status",
+            "description": "1待审核、2待顾客寄回、3退回在途、4已到店待验、5验货通过、6验货不通过待付运费、7已完成、8已关闭、9待门店寄回顾客"
           },
           "reason": {
             "anyOf": [
@@ -24668,7 +25569,8 @@
           },
           "staff_kind": {
             "type": "string",
-            "title": "Staff Kind"
+            "title": "Staff Kind",
+            "description": "store=门店店员；mall=商城人员"
           }
         },
         "additionalProperties": false,
@@ -24679,6 +25581,1941 @@
         ],
         "title": "MpStaffKindChooseReq",
         "description": "店员端：同一手机号同时是门店店员与商城人员时，选定身份完成登录。"
+      },
+      "AdminCustomerRes": {
+        "properties": {
+          "customer_id": {
+            "type": "string",
+            "title": "Customer Id"
+          },
+          "nickname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nickname"
+          },
+          "mobile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mobile"
+          },
+          "member_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member No"
+          },
+          "member_level_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Level Rank"
+          },
+          "member_level_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Level Name"
+          },
+          "registered_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registered At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "customer_id"
+        ],
+        "title": "AdminCustomerRes"
+      },
+      "BaseResponse_CouponIssuePreviewRes_": {
+        "properties": {
+          "code": {
+            "type": "integer",
+            "title": "Code",
+            "description": "Response code; zero means success",
+            "default": 0
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Response message",
+            "default": "成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CouponIssuePreviewRes",
+            "description": "Response payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "BaseResponse[CouponIssuePreviewRes]"
+      },
+      "BaseResponse_CouponIssueRes_": {
+        "properties": {
+          "code": {
+            "type": "integer",
+            "title": "Code",
+            "description": "Response code; zero means success",
+            "default": 0
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Response message",
+            "default": "成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CouponIssueRes",
+            "description": "Response payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "BaseResponse[CouponIssueRes]"
+      },
+      "BaseResponse_CouponTemplateDetailRes_": {
+        "properties": {
+          "code": {
+            "type": "integer",
+            "title": "Code",
+            "description": "Response code; zero means success",
+            "default": 0
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Response message",
+            "default": "成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CouponTemplateDetailRes",
+            "description": "Response payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "BaseResponse[CouponTemplateDetailRes]"
+      },
+      "BaseResponse_CouponTemplateRes_": {
+        "properties": {
+          "code": {
+            "type": "integer",
+            "title": "Code",
+            "description": "Response code; zero means success",
+            "default": 0
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Response message",
+            "default": "成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CouponTemplateRes",
+            "description": "Response payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "BaseResponse[CouponTemplateRes]"
+      },
+      "BaseResponse_MemberLevelListRes_": {
+        "properties": {
+          "code": {
+            "type": "integer",
+            "title": "Code",
+            "description": "Response code; zero means success",
+            "default": 0
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Response message",
+            "default": "成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/MemberLevelListRes",
+            "description": "Response payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "BaseResponse[MemberLevelListRes]"
+      },
+      "BaseResponse_MyCouponDetailRes_": {
+        "properties": {
+          "code": {
+            "type": "integer",
+            "title": "Code",
+            "description": "Response code; zero means success",
+            "default": 0
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Response message",
+            "default": "成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/MyCouponDetailRes",
+            "description": "Response payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "BaseResponse[MyCouponDetailRes]"
+      },
+      "BaseResponse_MyCouponListRes_": {
+        "properties": {
+          "code": {
+            "type": "integer",
+            "title": "Code",
+            "description": "Response code; zero means success",
+            "default": 0
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Response message",
+            "default": "成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/MyCouponListRes",
+            "description": "Response payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "BaseResponse[MyCouponListRes]"
+      },
+      "BaseResponse_MyCouponRes_": {
+        "properties": {
+          "code": {
+            "type": "integer",
+            "title": "Code",
+            "description": "Response code; zero means success",
+            "default": 0
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Response message",
+            "default": "成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/MyCouponRes",
+            "description": "Response payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "BaseResponse[MyCouponRes]"
+      },
+      "BaseResponse_PageResult_AdminCustomerRes__": {
+        "properties": {
+          "code": {
+            "type": "integer",
+            "title": "Code",
+            "description": "Response code; zero means success",
+            "default": 0
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Response message",
+            "default": "成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PageResult_AdminCustomerRes_",
+            "description": "Response payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "BaseResponse[PageResult[AdminCustomerRes]]"
+      },
+      "BaseResponse_PageResult_CouponWriteoffRes__": {
+        "properties": {
+          "code": {
+            "type": "integer",
+            "title": "Code",
+            "description": "Response code; zero means success",
+            "default": 0
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Response message",
+            "default": "成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PageResult_CouponWriteoffRes_",
+            "description": "Response payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "BaseResponse[PageResult[CouponWriteoffRes]]"
+      },
+      "CouponAudienceFilter": {
+        "properties": {
+          "member_level_rank_gte": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Level Rank Gte"
+          },
+          "register_within_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Register Within Days"
+          },
+          "register_days_min": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Register Days Min"
+          },
+          "register_days_max": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Register Days Max"
+          },
+          "store_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Store Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "CouponAudienceFilter"
+      },
+      "CouponClaimReq": {
+        "properties": {
+          "coupon_template_id": {
+            "type": "integer",
+            "title": "Coupon Template Id"
+          },
+          "store_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Store Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "coupon_template_id"
+        ],
+        "title": "CouponClaimReq"
+      },
+      "CouponIssuePreviewReq": {
+        "properties": {
+          "coupon_template_id": {
+            "type": "integer",
+            "title": "Coupon Template Id"
+          },
+          "audience_mode": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Audience Mode",
+            "description": "1全选、2手动、3按条件"
+          },
+          "store_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Store Id"
+          },
+          "audience_filter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CouponAudienceFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "customer_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Customer Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "coupon_template_id",
+          "audience_mode"
+        ],
+        "title": "CouponIssuePreviewReq"
+      },
+      "CouponIssuePreviewRes": {
+        "properties": {
+          "estimated_count": {
+            "type": "integer",
+            "title": "Estimated Count",
+            "default": 0
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "CouponIssuePreviewRes"
+      },
+      "CouponIssueReq": {
+        "properties": {
+          "audience_mode": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Audience Mode",
+            "description": "1全选、2手动、3按条件"
+          },
+          "store_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Store Id"
+          },
+          "audience_filter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CouponAudienceFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "customer_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Customer Ids"
+          },
+          "remark": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remark"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "audience_mode"
+        ],
+        "title": "CouponIssueReq"
+      },
+      "CouponIssueRes": {
+        "properties": {
+          "batch_no": {
+            "type": "string",
+            "title": "Batch No"
+          },
+          "target_count": {
+            "type": "integer",
+            "title": "Target Count",
+            "default": 0
+          },
+          "issued_count": {
+            "type": "integer",
+            "title": "Issued Count",
+            "default": 0
+          },
+          "skipped_count": {
+            "type": "integer",
+            "title": "Skipped Count",
+            "default": 0
+          },
+          "failed_count": {
+            "type": "integer",
+            "title": "Failed Count",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "batch_no"
+        ],
+        "title": "CouponIssueRes"
+      },
+      "CouponTemplateBriefRes": {
+        "properties": {
+          "coupon_template_id": {
+            "type": "string",
+            "title": "Coupon Template Id"
+          },
+          "coupon_code": {
+            "type": "string",
+            "title": "Coupon Code"
+          },
+          "coupon_name": {
+            "type": "string",
+            "title": "Coupon Name"
+          },
+          "coupon_type": {
+            "type": "integer",
+            "title": "Coupon Type",
+            "description": "1满减、2折扣、3兑换、4指定商品"
+          },
+          "discount_amount": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Amount"
+          },
+          "discount_rate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Rate"
+          },
+          "threshold_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Threshold Amount",
+            "default": "0"
+          },
+          "valid_type": {
+            "type": "integer",
+            "title": "Valid Type",
+            "description": "1固定日期、2领取后N天"
+          },
+          "valid_start_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Start At"
+          },
+          "valid_end_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid End At"
+          },
+          "valid_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Days"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "claimed_count": {
+            "type": "integer",
+            "title": "Claimed Count",
+            "default": 0
+          },
+          "can_claim": {
+            "type": "boolean",
+            "title": "Can Claim",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "coupon_template_id",
+          "coupon_code",
+          "coupon_name",
+          "coupon_type",
+          "valid_type"
+        ],
+        "title": "CouponTemplateBriefRes"
+      },
+      "CouponTemplateDetailRes": {
+        "properties": {
+          "coupon_template_id": {
+            "type": "string",
+            "title": "Coupon Template Id"
+          },
+          "coupon_code": {
+            "type": "string",
+            "title": "Coupon Code"
+          },
+          "coupon_name": {
+            "type": "string",
+            "title": "Coupon Name"
+          },
+          "coupon_type": {
+            "type": "integer",
+            "title": "Coupon Type",
+            "description": "1满减、2折扣、3兑换、4指定商品"
+          },
+          "discount_amount": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Amount"
+          },
+          "discount_rate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Rate"
+          },
+          "threshold_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Threshold Amount",
+            "default": "0"
+          },
+          "valid_type": {
+            "type": "integer",
+            "title": "Valid Type",
+            "description": "1固定日期、2领取后N天"
+          },
+          "valid_start_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Start At"
+          },
+          "valid_end_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid End At"
+          },
+          "valid_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Days"
+          },
+          "total_quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Quantity"
+          },
+          "per_customer_limit": {
+            "type": "integer",
+            "title": "Per Customer Limit",
+            "default": 1
+          },
+          "issue_start_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issue Start At"
+          },
+          "issue_end_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issue End At"
+          },
+          "applicable_scope": {
+            "type": "integer",
+            "title": "Applicable Scope",
+            "description": "1全商品、2指定商品、3指定分类",
+            "default": 1
+          },
+          "audience_type": {
+            "type": "integer",
+            "title": "Audience Type",
+            "description": "1不限、2等级及以上、3刚注册、4注册天数、5仅定向",
+            "default": 1
+          },
+          "min_member_level_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Member Level Rank"
+          },
+          "register_within_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Register Within Days"
+          },
+          "register_days_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Register Days Min"
+          },
+          "register_days_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Register Days Max"
+          },
+          "claim_visible": {
+            "type": "integer",
+            "title": "Claim Visible",
+            "default": 1
+          },
+          "auto_issue_on_register": {
+            "type": "integer",
+            "title": "Auto Issue On Register",
+            "default": 0
+          },
+          "owner_store_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Store Id"
+          },
+          "created_by_admin_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Admin Id"
+          },
+          "status": {
+            "type": "integer",
+            "title": "Status",
+            "description": "0草稿、1启用、2停用"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "store_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Store Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "coupon_template_id",
+          "coupon_code",
+          "coupon_name",
+          "coupon_type",
+          "valid_type",
+          "status"
+        ],
+        "title": "CouponTemplateDetailRes"
+      },
+      "CouponTemplateRes": {
+        "properties": {
+          "coupon_template_id": {
+            "type": "string",
+            "title": "Coupon Template Id"
+          },
+          "coupon_code": {
+            "type": "string",
+            "title": "Coupon Code"
+          },
+          "coupon_name": {
+            "type": "string",
+            "title": "Coupon Name"
+          },
+          "coupon_type": {
+            "type": "integer",
+            "title": "Coupon Type",
+            "description": "1满减、2折扣、3兑换、4指定商品"
+          },
+          "discount_amount": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Amount"
+          },
+          "discount_rate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Rate"
+          },
+          "threshold_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Threshold Amount",
+            "default": "0"
+          },
+          "valid_type": {
+            "type": "integer",
+            "title": "Valid Type",
+            "description": "1固定日期、2领取后N天"
+          },
+          "valid_start_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Start At"
+          },
+          "valid_end_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid End At"
+          },
+          "valid_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Days"
+          },
+          "total_quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Quantity"
+          },
+          "per_customer_limit": {
+            "type": "integer",
+            "title": "Per Customer Limit",
+            "default": 1
+          },
+          "issue_start_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issue Start At"
+          },
+          "issue_end_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issue End At"
+          },
+          "applicable_scope": {
+            "type": "integer",
+            "title": "Applicable Scope",
+            "description": "1全商品、2指定商品、3指定分类",
+            "default": 1
+          },
+          "audience_type": {
+            "type": "integer",
+            "title": "Audience Type",
+            "description": "1不限、2等级及以上、3刚注册、4注册天数、5仅定向",
+            "default": 1
+          },
+          "min_member_level_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Member Level Rank"
+          },
+          "register_within_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Register Within Days"
+          },
+          "register_days_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Register Days Min"
+          },
+          "register_days_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Register Days Max"
+          },
+          "claim_visible": {
+            "type": "integer",
+            "title": "Claim Visible",
+            "default": 1
+          },
+          "auto_issue_on_register": {
+            "type": "integer",
+            "title": "Auto Issue On Register",
+            "default": 0
+          },
+          "owner_store_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Store Id"
+          },
+          "created_by_admin_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Admin Id"
+          },
+          "status": {
+            "type": "integer",
+            "title": "Status",
+            "description": "0草稿、1启用、2停用"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "store_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Store Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "coupon_template_id",
+          "coupon_code",
+          "coupon_name",
+          "coupon_type",
+          "valid_type",
+          "status"
+        ],
+        "title": "CouponTemplateRes"
+      },
+      "CouponTemplateUpsertReq": {
+        "properties": {
+          "coupon_code": {
+            "type": "string",
+            "maxLength": 32,
+            "title": "Coupon Code"
+          },
+          "coupon_name": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Coupon Name"
+          },
+          "coupon_type": {
+            "type": "integer",
+            "maximum": 4.0,
+            "minimum": 1.0,
+            "title": "Coupon Type",
+            "description": "1满减、2折扣、3兑换、4指定商品"
+          },
+          "discount_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Amount"
+          },
+          "discount_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Rate",
+            "description": "如 90 表示九折"
+          },
+          "threshold_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
+            "title": "Threshold Amount",
+            "default": "0"
+          },
+          "valid_type": {
+            "type": "integer",
+            "maximum": 2.0,
+            "minimum": 1.0,
+            "title": "Valid Type",
+            "description": "1固定日期、2领取后N天"
+          },
+          "valid_start_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Start At"
+          },
+          "valid_end_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid End At"
+          },
+          "valid_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Days"
+          },
+          "total_quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Quantity"
+          },
+          "per_customer_limit": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Per Customer Limit",
+            "default": 1
+          },
+          "issue_start_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issue Start At"
+          },
+          "issue_end_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issue End At"
+          },
+          "applicable_scope": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Applicable Scope",
+            "description": "1全商品、2指定商品、3指定分类",
+            "default": 1
+          },
+          "audience_type": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Audience Type",
+            "description": "1不限、2等级及以上、3刚注册、4注册天数、5仅定向",
+            "default": 1
+          },
+          "min_member_level_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Member Level Rank"
+          },
+          "register_within_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Register Within Days"
+          },
+          "register_days_min": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Register Days Min"
+          },
+          "register_days_max": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Register Days Max"
+          },
+          "claim_visible": {
+            "type": "integer",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Claim Visible",
+            "description": "0不可见领取、1可领列表可见",
+            "default": 1
+          },
+          "auto_issue_on_register": {
+            "type": "integer",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Auto Issue On Register",
+            "description": "0否、1注册自动发",
+            "default": 0
+          },
+          "status": {
+            "type": "integer",
+            "title": "Status",
+            "description": "0草稿、1启用、2停用",
+            "default": 1
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "store_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Store Ids",
+            "description": "空=全部门店"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "coupon_code",
+          "coupon_name",
+          "coupon_type",
+          "valid_type"
+        ],
+        "title": "CouponTemplateUpsertReq"
+      },
+      "CouponWriteoffRes": {
+        "properties": {
+          "writeoff_id": {
+            "type": "string",
+            "title": "Writeoff Id"
+          },
+          "customer_coupon_id": {
+            "type": "string",
+            "title": "Customer Coupon Id"
+          },
+          "coupon_no": {
+            "type": "string",
+            "title": "Coupon No"
+          },
+          "coupon_name": {
+            "type": "string",
+            "title": "Coupon Name"
+          },
+          "customer_id": {
+            "type": "string",
+            "title": "Customer Id"
+          },
+          "store_id": {
+            "type": "string",
+            "title": "Store Id"
+          },
+          "store_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Store Name"
+          },
+          "order_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Id"
+          },
+          "writeoff_channel": {
+            "type": "integer",
+            "title": "Writeoff Channel",
+            "description": "1下单自动核销、2店员扫码、3店员手输"
+          },
+          "operator_type": {
+            "type": "integer",
+            "title": "Operator Type",
+            "description": "1管理端、2店员、3系统等"
+          },
+          "operator_id": {
+            "type": "string",
+            "title": "Operator Id"
+          },
+          "result_status": {
+            "type": "integer",
+            "title": "Result Status",
+            "description": "1成功、2失败、3撤销"
+          },
+          "fail_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fail Reason"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "writeoff_id",
+          "customer_coupon_id",
+          "coupon_no",
+          "coupon_name",
+          "customer_id",
+          "store_id",
+          "writeoff_channel",
+          "operator_type",
+          "operator_id",
+          "result_status",
+          "created_at"
+        ],
+        "title": "CouponWriteoffRes"
+      },
+      "MemberLevelListRes": {
+        "properties": {
+          "list": {
+            "items": {
+              "$ref": "#/components/schemas/MemberLevelRes"
+            },
+            "type": "array",
+            "title": "List"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "MemberLevelListRes"
+      },
+      "MemberLevelRes": {
+        "properties": {
+          "member_level_id": {
+            "type": "string",
+            "title": "Member Level Id"
+          },
+          "level_code": {
+            "type": "string",
+            "title": "Level Code"
+          },
+          "level_name": {
+            "type": "string",
+            "title": "Level Name"
+          },
+          "level_rank": {
+            "type": "integer",
+            "title": "Level Rank"
+          },
+          "discount_rate": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Discount Rate"
+          },
+          "status": {
+            "type": "integer",
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "member_level_id",
+          "level_code",
+          "level_name",
+          "level_rank",
+          "discount_rate",
+          "status"
+        ],
+        "title": "MemberLevelRes"
+      },
+      "MyCouponDetailRes": {
+        "properties": {
+          "customer_coupon_id": {
+            "type": "string",
+            "title": "Customer Coupon Id"
+          },
+          "coupon_no": {
+            "type": "string",
+            "title": "Coupon No"
+          },
+          "coupon_status": {
+            "type": "integer",
+            "title": "Coupon Status",
+            "description": "1未使用、2锁定、3已使用、4已过期、5已作废"
+          },
+          "coupon_status_label": {
+            "type": "string",
+            "title": "Coupon Status Label"
+          },
+          "valid_start_at": {
+            "type": "string",
+            "title": "Valid Start At"
+          },
+          "valid_end_at": {
+            "type": "string",
+            "title": "Valid End At"
+          },
+          "used_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Used At"
+          },
+          "template": {
+            "$ref": "#/components/schemas/CouponTemplateBriefRes"
+          },
+          "locked_order_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked Order Id"
+          },
+          "used_order_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Used Order Id"
+          },
+          "void_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Void Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "customer_coupon_id",
+          "coupon_no",
+          "coupon_status",
+          "coupon_status_label",
+          "valid_start_at",
+          "valid_end_at",
+          "template"
+        ],
+        "title": "MyCouponDetailRes"
+      },
+      "MyCouponListRes": {
+        "properties": {
+          "list": {
+            "items": {
+              "$ref": "#/components/schemas/MyCouponRes"
+            },
+            "type": "array",
+            "title": "List"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "MyCouponListRes"
+      },
+      "MyCouponRes": {
+        "properties": {
+          "customer_coupon_id": {
+            "type": "string",
+            "title": "Customer Coupon Id"
+          },
+          "coupon_no": {
+            "type": "string",
+            "title": "Coupon No"
+          },
+          "coupon_status": {
+            "type": "integer",
+            "title": "Coupon Status",
+            "description": "1未使用、2锁定、3已使用、4已过期、5已作废"
+          },
+          "coupon_status_label": {
+            "type": "string",
+            "title": "Coupon Status Label"
+          },
+          "valid_start_at": {
+            "type": "string",
+            "title": "Valid Start At"
+          },
+          "valid_end_at": {
+            "type": "string",
+            "title": "Valid End At"
+          },
+          "used_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Used At"
+          },
+          "template": {
+            "$ref": "#/components/schemas/CouponTemplateBriefRes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "customer_coupon_id",
+          "coupon_no",
+          "coupon_status",
+          "coupon_status_label",
+          "valid_start_at",
+          "valid_end_at",
+          "template"
+        ],
+        "title": "MyCouponRes"
+      },
+      "PageResult_AdminCustomerRes_": {
+        "properties": {
+          "list": {
+            "items": {
+              "$ref": "#/components/schemas/AdminCustomerRes"
+            },
+            "type": "array",
+            "title": "List",
+            "description": "Current page items"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total",
+            "description": "Total item count"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page",
+            "description": "Current page number"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page Size",
+            "description": "Items per page"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "PageResult[AdminCustomerRes]"
+      },
+      "PageResult_CouponWriteoffRes_": {
+        "properties": {
+          "list": {
+            "items": {
+              "$ref": "#/components/schemas/CouponWriteoffRes"
+            },
+            "type": "array",
+            "title": "List",
+            "description": "Current page items"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total",
+            "description": "Total item count"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page",
+            "description": "Current page number"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page Size",
+            "description": "Items per page"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "PageResult[CouponWriteoffRes]"
+      },
+      "application__apis__admin_coupon__schema__CouponTemplateListRes": {
+        "properties": {
+          "list": {
+            "items": {
+              "$ref": "#/components/schemas/CouponTemplateRes"
+            },
+            "type": "array",
+            "title": "List"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "CouponTemplateListRes"
+      },
+      "application__apis__mp_coupon__schema__CouponTemplateListRes": {
+        "properties": {
+          "list": {
+            "items": {
+              "$ref": "#/components/schemas/CouponTemplateBriefRes"
+            },
+            "type": "array",
+            "title": "List"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "CouponTemplateListRes"
+      },
+      "application__common__schema__response_schema__BaseResponse_CouponTemplateListRes___1": {
+        "properties": {
+          "code": {
+            "type": "integer",
+            "title": "Code",
+            "description": "Response code; zero means success",
+            "default": 0
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Response message",
+            "default": "成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/application__apis__admin_coupon__schema__CouponTemplateListRes",
+            "description": "Response payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "BaseResponse[CouponTemplateListRes]"
+      },
+      "application__common__schema__response_schema__BaseResponse_CouponTemplateListRes___2": {
+        "properties": {
+          "code": {
+            "type": "integer",
+            "title": "Code",
+            "description": "Response code; zero means success",
+            "default": 0
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Response message",
+            "default": "成功"
+          },
+          "data": {
+            "$ref": "#/components/schemas/application__apis__mp_coupon__schema__CouponTemplateListRes",
+            "description": "Response payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "BaseResponse[CouponTemplateListRes]"
       }
     }
   }

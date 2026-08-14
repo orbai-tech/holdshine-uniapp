@@ -1,45 +1,85 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { onHide, onShow, onUnload } from '@dcloudio/uni-app'
 import SoorakChrome from '@/components/soorak-chrome/soorak-chrome.vue'
+import { claimCoupon, listAvailableCoupons } from '@/common/apis/couponApi'
+import type { CouponTemplateBriefRes } from '@/common/types/coupon'
+import { useCatalogStore } from '@/stores/catalog'
 import { useSessionStore } from '@/stores/session'
 import { toErrorMessage } from '@/utils/errorMessage'
 
-type PerkId = 'tea' | 'instant'
+const session = useSessionStore()
+const catalog = useCatalogStore()
+const statusBarPx = uni.getSystemInfoSync().statusBarHeight || 0
 
-type Perk = {
-  id: PerkId
-  name: string
-  amount: string
-  rule: string
-  note: string
-  dot: 'brass' | 'moss'
+const perks = ref<CouponTemplateBriefRes[]>([])
+const loading = ref(false)
+const claimingId = ref<string | null>(null)
+
+function formatAmount(perk: CouponTemplateBriefRes): string {
+  const discount = perk.discount_amount
+  if (discount != null && discount !== '' && Number(discount) > 0) {
+    return `减 ¥${Number(discount)}`
+  }
+  if (perk.discount_rate != null && perk.discount_rate !== '') {
+    return `${Number(perk.discount_rate) * 10} 折`
+  }
+  return perk.coupon_name
 }
 
-const PERKS: Perk[] = [
-  {
-    id: 'tea',
-    name: '品茗礼',
-    amount: '减 ¥3',
-    rule: '满 ¥10 可享 · 门店饮品',
-    note: '适合一次轻饮，或与友人分席',
-    dot: 'brass',
-  },
-  {
-    id: 'instant',
-    name: '即席礼',
-    amount: '减 ¥4',
-    rule: '无门槛 · 单笔可用一次',
-    note: '今日想少想一点时，直接入席',
-    dot: 'moss',
-  },
-]
+function formatRule(perk: CouponTemplateBriefRes): string {
+  const threshold = Number(perk.threshold_amount || 0)
+  if (threshold > 0) return `满 ¥${threshold} 可享 · 门店饮品`
+  return '无门槛 · 单笔可用一次'
+}
 
-const session = useSessionStore()
-const statusBarPx = uni.getSystemInfoSync().statusBarHeight || 0
+function formatNote(perk: CouponTemplateBriefRes): string {
+  return perk.description?.trim() || '领取后可在确认单选用'
+}
+
+function dotClass(index: number): 'brass' | 'moss' {
+  return index % 2 === 0 ? 'brass' : 'moss'
+}
+
+async function loadPerks(retried = false) {
+  if (loading.value) return
+  loading.value = true
+  try {
+    await catalog.ensureLoaded()
+    const storeId = catalog.currentStoreId
+    if (storeId == null) {
+      perks.value = []
+      return
+    }
+    perks.value = await listAvailableCoupons(storeId)
+  } catch (error) {
+    console.error('[元气善筑] 可领券加载失败', error)
+    const message = toErrorMessage(error, '加载失败')
+    // mock 重启等导致票失效：换票后重试一次
+    if (message === 'UNAUTHORIZED' && !retried) {
+      loading.value = false
+      const ok = await session.ensureLogin()
+      if (ok) {
+        await loadPerks(true)
+        return
+      }
+    }
+    if (message !== 'UNAUTHORIZED') {
+      uni.showToast({ title: message.slice(0, 40), icon: 'none' })
+    }
+  } finally {
+    loading.value = false
+  }
+}
 
 onShow(() => {
   session.hideNativeTabBar()
   session.setSuppressTabBar(true)
+  void (async () => {
+    const ok = await session.ensureLogin()
+    if (!ok) return
+    await loadPerks()
+  })()
 })
 
 onHide(() => {
@@ -55,21 +95,42 @@ function onBack() {
   uni.navigateBack()
 }
 
-async function onEnjoy() {
+async function onClaim(perk: CouponTemplateBriefRes) {
+  if (!perk.can_claim) {
+    session.goTab('/pages/menu/index')
+    return
+  }
+  if (claimingId.value) return
   if (!session.loggedIn) {
     try {
       await session.login()
-      uni.showToast({ title: '登录成功', icon: 'none' })
     } catch (error) {
       console.error('[元气善筑] 登录失败', error)
       const message = toErrorMessage(error, '登录失败')
       if (message !== 'UNAUTHORIZED') {
         uni.showToast({ title: message.slice(0, 40), icon: 'none' })
       }
+      return
     }
-    return
   }
-  session.goTab('/pages/menu/index')
+  claimingId.value = perk.coupon_template_id
+  try {
+    const storeId = catalog.currentStoreId
+    await claimCoupon({
+      coupon_template_id: perk.coupon_template_id,
+      store_id: storeId,
+    })
+    uni.showToast({ title: '领取成功', icon: 'none' })
+    await loadPerks()
+  } catch (error) {
+    console.error('[元气善筑] 领券失败', error)
+    const message = toErrorMessage(error, '领取失败')
+    if (message !== 'UNAUTHORIZED') {
+      uni.showToast({ title: message.slice(0, 40), icon: 'none' })
+    }
+  } finally {
+    claimingId.value = null
+  }
 }
 </script>
 
@@ -90,18 +151,35 @@ async function onEnjoy() {
         <text class="t-caption">款待，而非催促</text>
       </view>
 
+      <view v-if="!loading && !perks.length" class="coupons-empty">
+        <text class="t-caption">暂无可领礼遇</text>
+      </view>
+
       <view class="perk-list">
-        <view v-for="perk in PERKS" :key="perk.id" class="perk-card">
+        <view v-for="(perk, index) in perks" :key="perk.coupon_template_id" class="perk-card">
           <view class="perk-card__label">
-            <view class="perk-card__dot" :class="`perk-card__dot--${perk.dot}`" />
-            <text class="t-label">{{ perk.name }}</text>
+            <view class="perk-card__dot" :class="`perk-card__dot--${dotClass(index)}`" />
+            <text class="t-label">{{ perk.coupon_name }}</text>
           </view>
-          <text class="perk-card__amount">{{ perk.amount }}</text>
+          <text class="perk-card__amount">{{ formatAmount(perk) }}</text>
           <view class="perk-card__rule">
-            <text class="t-caption">{{ perk.rule }}</text>
-            <text class="t-caption">{{ perk.note }}</text>
+            <text class="t-caption">{{ formatRule(perk) }}</text>
+            <text class="t-caption">{{ formatNote(perk) }}</text>
           </view>
-          <view class="perk-cta" hover-class="perk-cta--active" @click="onEnjoy">去点单享用</view>
+          <view
+            class="perk-cta"
+            :class="{ 'perk-cta--disabled': !perk.can_claim && claimingId !== perk.coupon_template_id }"
+            hover-class="perk-cta--active"
+            @click="onClaim(perk)"
+          >
+            {{
+              claimingId === perk.coupon_template_id
+                ? '领取中…'
+                : perk.can_claim
+                  ? '领取'
+                  : '去点单享用'
+            }}
+          </view>
         </view>
       </view>
     </view>
@@ -146,6 +224,10 @@ async function onEnjoy() {
 .coupons-head .t-caption {
   display: block;
   margin-top: 8rpx;
+}
+
+.coupons-empty {
+  margin-bottom: 24rpx;
 }
 
 .perk-list {
@@ -210,6 +292,11 @@ async function onEnjoy() {
   font-size: 26rpx;
   font-weight: 500;
   letter-spacing: 0.06em;
+}
+
+.perk-cta--disabled {
+  background: $mp-moss;
+  opacity: 0.88;
 }
 
 .perk-cta--active {

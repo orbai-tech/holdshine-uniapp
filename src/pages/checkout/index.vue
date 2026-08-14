@@ -4,8 +4,8 @@ import { onHide, onShow, onUnload } from '@dcloudio/uni-app'
 import SoorakChrome from '@/components/soorak-chrome/soorak-chrome.vue'
 import SoorakButton from '@/components/soorak-button/soorak-button.vue'
 import SoorakSheet from '@/components/soorak-sheet/soorak-sheet.vue'
-import { previewCheckout } from '@/common/apis/couponApi'
-import type { CheckoutPreviewRes, MyCouponRes } from '@/common/types/coupon'
+import { listMyCoupons } from '@/common/apis/couponApi'
+import type { MyCouponRes } from '@/common/types/coupon'
 import type { TableCode } from '@/common/types/fulfillment'
 import { TABLE_CODE_OPTIONS } from '@/common/types/fulfillment'
 import { lineAmount, useCartStore } from '@/stores/cart'
@@ -14,6 +14,11 @@ import { useSessionStore } from '@/stores/session'
 import { toErrorMessage } from '@/utils/errorMessage'
 import { formatItemSpec } from '@/utils/orderItemLabel'
 import { parseAmount } from '@/utils/money'
+import {
+  calcCouponDiscount,
+  calcPayable,
+  evaluateCouponsForSubtotal,
+} from '@/utils/pricing'
 
 const session = useSessionStore()
 const cart = useCartStore()
@@ -22,10 +27,10 @@ const catalog = useCatalogStore()
 const remark = ref('')
 const tableSheetOpen = ref(false)
 const couponSheetOpen = ref(false)
-/** mock 调试：选中的券；真接口仍走 couponApi.previewCheckout */
-const selectedCouponId = ref<number | null>(null)
-const preview = ref<CheckoutPreviewRes | null>(null)
-const previewBusy = ref(false)
+/** 选中的顾客券；折扣本地试算，支付时交后端重算核销 */
+const selectedCouponId = ref<string | null>(null)
+const coupons = ref<MyCouponRes[]>([])
+const couponsBusy = ref(false)
 
 const usingRemote = computed(() => Boolean(cart.remote))
 const empty = computed(() =>
@@ -43,23 +48,43 @@ const tableLabel = computed(() => {
   return session.tableCode ? `桌码 ${session.tableCode}` : '桌码 无'
 })
 
-const displayTotal = computed(() => {
-  if (preview.value) return parseAmount(preview.value.payable_amount)
-  return cart.cartTotal
+/** 商品小计：有 remote 用服务端商品+加料；否则本地累加 */
+const goodsSubtotal = computed(() => {
+  if (cart.remote) {
+    return (
+      parseAmount(cart.remote.product_amount) + parseAmount(cart.remote.option_amount)
+    )
+  }
+  return cart.items.reduce((sum, item) => sum + lineAmount(item), 0)
 })
 
-const discountAmount = computed(() =>
-  preview.value ? parseAmount(preview.value.discount_amount) : 0,
+const evaluatedCoupons = computed(() =>
+  evaluateCouponsForSubtotal(coupons.value, goodsSubtotal.value),
 )
 
+const selectedCoupon = computed(() =>
+  evaluatedCoupons.value.find((item) => item.customer_coupon_id === selectedCouponId.value) ??
+  null,
+)
+
+const discountAmount = computed(() => {
+  if (!selectedCoupon.value) return 0
+  return calcCouponDiscount(goodsSubtotal.value, selectedCoupon.value).discount
+})
+
+const discountAmountText = computed(() => discountAmount.value.toFixed(2))
+
+const displayTotal = computed(() => calcPayable(goodsSubtotal.value, discountAmount.value))
+
 const couponLabel = computed(() => {
-  if (!preview.value) return '加载中…'
+  if (couponsBusy.value && !coupons.value.length) return '加载中…'
   if (selectedCouponId.value == null) {
-    const usableCount = (preview.value.coupons ?? []).filter((item) => item.usable).length
+    const usableCount = evaluatedCoupons.value.filter((item) => item.usable).length
     return usableCount ? `${usableCount} 张可用` : '暂无可用优惠券'
   }
-  const hit = (preview.value.coupons ?? []).find((item) => item.coupon_id === selectedCouponId.value)
-  return hit ? `已选 ${hit.title}` : '已选优惠券'
+  const hit = selectedCoupon.value
+  const title = hit?.title ?? hit?.template?.coupon_name
+  return hit && title ? `已选 ${title}` : '已选优惠券'
 })
 
 const couponValueClass = computed(() =>
@@ -68,23 +93,25 @@ const couponValueClass = computed(() =>
     : 'ck-row__value--muted',
 )
 
-async function refreshPreview() {
-  const storeId = catalog.currentStoreId
-  if (storeId == null || empty.value || !session.loggedIn) {
-    preview.value = null
+async function refreshCoupons() {
+  if (empty.value || !session.loggedIn) {
+    coupons.value = []
     return
   }
-  previewBusy.value = true
+  couponsBusy.value = true
   try {
-    preview.value = await previewCheckout({
-      store_id: storeId,
-      coupon_id: selectedCouponId.value,
-    })
+    coupons.value = await listMyCoupons()
+    if (
+      selectedCouponId.value != null &&
+      !coupons.value.some((item) => item.customer_coupon_id === selectedCouponId.value)
+    ) {
+      selectedCouponId.value = null
+    }
   } catch (error) {
-    preview.value = null
-    uni.showToast({ title: toErrorMessage(error, '优惠预览失败').slice(0, 40), icon: 'none' })
+    coupons.value = []
+    uni.showToast({ title: toErrorMessage(error, '优惠券加载失败').slice(0, 40), icon: 'none' })
   } finally {
-    previewBusy.value = false
+    couponsBusy.value = false
   }
 }
 
@@ -92,7 +119,7 @@ onShow(() => {
   session.hideNativeTabBar()
   session.setSuppressTabBar(true)
   if (catalog.currentStoreId != null) {
-    void cart.refreshCart().then(() => refreshPreview())
+    void cart.refreshCart().then(() => refreshCoupons())
   }
 })
 
@@ -107,7 +134,13 @@ onUnload(() => {
 watch(
   () => cart.remote?.payable_amount,
   () => {
-    if (!empty.value) void refreshPreview()
+    if (
+      selectedCouponId.value != null &&
+      selectedCoupon.value &&
+      !selectedCoupon.value.usable
+    ) {
+      selectedCouponId.value = null
+    }
   },
 )
 
@@ -143,7 +176,7 @@ function tableOptionLabel(code: TableCode | null) {
 
 function openCouponSheet() {
   couponSheetOpen.value = true
-  void refreshPreview()
+  void refreshCoupons()
 }
 
 function pickCoupon(coupon: MyCouponRes | null) {
@@ -151,9 +184,8 @@ function pickCoupon(coupon: MyCouponRes | null) {
     uni.showToast({ title: coupon.unusable_reason || '不可用', icon: 'none' })
     return
   }
-  selectedCouponId.value = coupon?.coupon_id ?? null
+  selectedCouponId.value = coupon?.customer_coupon_id ?? null
   couponSheetOpen.value = false
-  void refreshPreview()
 }
 
 async function submitPay() {
@@ -174,7 +206,8 @@ async function submitPay() {
   try {
     await cart.submitCheckout({
       remark: remark.value,
-      coupon_id: selectedCouponId.value,
+      customer_coupon_id: selectedCouponId.value,
+      client_payable_amount: displayTotal.value,
     })
   } catch (error) {
     uni.showToast({ title: toErrorMessage(error, '提交失败').slice(0, 40), icon: 'none' })
@@ -304,7 +337,7 @@ async function submitPay() {
 
         <view v-if="discountAmount > 0" class="ck-discount">
           <text>优惠</text>
-          <text class="ck-discount__val">-¥{{ preview?.discount_amount }}</text>
+          <text class="ck-discount__val">-¥{{ discountAmountText }}</text>
         </view>
 
         <view class="ck-total">
@@ -365,18 +398,23 @@ async function submitPay() {
           <text>不使用优惠券</text>
         </view>
         <view
-          v-for="coupon in preview?.coupons ?? []"
-          :key="coupon.coupon_id"
+          v-for="coupon in evaluatedCoupons"
+          :key="coupon.customer_coupon_id"
           class="coupon-option"
-          :class="{ 'is-on': selectedCouponId === coupon.coupon_id, 'is-disabled': !coupon.usable }"
+          :class="{
+            'is-on': selectedCouponId === coupon.customer_coupon_id,
+            'is-disabled': !coupon.usable,
+          }"
           @click="pickCoupon(coupon)"
         >
           <view class="coupon-option__main">
-            <text class="coupon-option__title">{{ coupon.title }}</text>
+            <text class="coupon-option__title">{{
+              coupon.title || coupon.template?.coupon_name || '优惠券'
+            }}</text>
             <text class="coupon-option__meta">
               {{
                 coupon.usable
-                  ? `可减 ¥${coupon.discount_amount || coupon.reduce_amount}`
+                  ? `可减 ¥${coupon.discount_amount || coupon.template?.discount_amount || coupon.reduce_amount}`
                   : coupon.unusable_reason || '不可用'
               }}
             </text>

@@ -5,7 +5,10 @@ export function getCart(storeId: number) {
   return http.get<CartRes>('/api/mp/cart', { store_id: storeId }, { showError: false })
 }
 
-/** 规格询价：不改购物车；真后端对齐同 path 即可 */
+/**
+ * @deprecated 契约已删；规格单价改为菜单 sale_price + price_delta 本地试算。
+ * mock 仍保留 handler，勿在主路径调用。
+ */
 export function quoteCartItem(payload: CartQuoteReq) {
   return http.post<CartQuoteRes>('/api/mp/cart/quote', payload, { showError: false })
 }

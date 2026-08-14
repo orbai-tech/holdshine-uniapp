@@ -3,13 +3,23 @@ import { ref } from 'vue'
 import { onHide, onShow, onUnload } from '@dcloudio/uni-app'
 import SoorakChrome from '@/components/soorak-chrome/soorak-chrome.vue'
 import SoorakButton from '@/components/soorak-button/soorak-button.vue'
+import {
+  addressResToDelivery,
+  createAddress,
+  deliveryToUpsert,
+  listAddresses,
+  toAddressId,
+  updateAddress,
+} from '@/common/apis/addressApi'
 import type { AddressGender, AddressTag, DeliveryAddress } from '@/common/types/fulfillment'
 import { useSessionStore } from '@/stores/session'
+import { toErrorMessage } from '@/utils/errorMessage'
 
 const TAGS: AddressTag[] = ['家', '公司', '学校', '其他']
 
 const session = useSessionStore()
 
+const addressId = ref<string | null>(null)
 const name = ref('')
 const gender = ref<AddressGender>('先生')
 const phone = ref('')
@@ -19,17 +29,15 @@ const door = ref('')
 const tag = ref<AddressTag>('家')
 const latitude = ref<number | null>(null)
 const longitude = ref<number | null>(null)
+const saving = ref(false)
 
 function parseRegionValue(text: string): string[] {
   const parts = text.trim().split(/\s+/).filter(Boolean)
   return parts.length >= 2 && parts.length <= 3 ? parts : []
 }
 
-onShow(() => {
-  session.hideNativeTabBar()
-  session.setSuppressTabBar(true)
-  const existing = session.deliveryAddress
-  if (!existing) return
+function applyForm(existing: DeliveryAddress) {
+  addressId.value = existing.address_id ?? null
   name.value = existing.name
   gender.value = existing.gender
   phone.value = existing.phone
@@ -39,6 +47,31 @@ onShow(() => {
   tag.value = existing.tag
   latitude.value = existing.latitude
   longitude.value = existing.longitude
+}
+
+async function hydrateFromApi() {
+  if (!session.loggedIn) return
+  try {
+    const data = await listAddresses()
+    const list = data?.list ?? []
+    if (!list.length) return
+    const preferred = list.find((row) => row.is_default === 1) ?? list[0]
+    applyForm(addressResToDelivery(preferred, gender.value || '先生'))
+  } catch (error) {
+    console.warn('[元气善筑] 地址列表回填失败', error)
+  }
+}
+
+onShow(() => {
+  session.hideNativeTabBar()
+  session.setSuppressTabBar(true)
+  const existing = session.deliveryAddress
+  if (existing) applyForm(existing)
+  void (async () => {
+    const ok = await session.ensureLogin()
+    if (!ok) return
+    await hydrateFromApi()
+  })()
 })
 
 onHide(() => {
@@ -63,7 +96,8 @@ function onRegionChange(e: { detail: { value: string[] } }) {
   region.value = next.filter(Boolean).join(' ')
 }
 
-function saveAndUse() {
+async function saveAndUse() {
+  if (saving.value) return
   const nextName = name.value.trim()
   const nextPhone = phone.value.trim()
   const nextRegion = region.value.trim()
@@ -84,9 +118,15 @@ function saveAndUse() {
     uni.showToast({ title: '请填写门牌号', icon: 'none' })
     return
   }
-  const next: DeliveryAddress = {
+
+  const loggedIn = await session.ensureLogin()
+  if (!loggedIn) {
+    uni.showToast({ title: '请先登录', icon: 'none' })
+    return
+  }
+
+  const draft = {
     name: nextName,
-    gender: gender.value,
     phone: nextPhone,
     region: nextRegion,
     door: nextDoor,
@@ -94,14 +134,31 @@ function saveAndUse() {
     latitude: latitude.value,
     longitude: longitude.value,
   }
-  session.saveDeliveryAddress(next)
-  session.setFulfillmentMode('delivery')
-  uni.redirectTo({
-    url: '/pages/stores/index?mode=delivery',
-    fail() {
-      uni.navigateTo({ url: '/pages/stores/index?mode=delivery', fail() {} })
-    },
-  })
+  const payload = deliveryToUpsert(draft, 1)
+
+  saving.value = true
+  try {
+    const res = addressId.value
+      ? await updateAddress(toAddressId(addressId.value), payload)
+      : await createAddress(payload)
+    const next = addressResToDelivery(res, gender.value)
+    session.saveDeliveryAddress(next)
+    session.setFulfillmentMode('delivery')
+    uni.redirectTo({
+      url: '/pages/stores/index?mode=delivery',
+      fail() {
+        uni.navigateTo({ url: '/pages/stores/index?mode=delivery', fail() {} })
+      },
+    })
+  } catch (error) {
+    console.error('[元气善筑] 保存地址失败', error)
+    const message = toErrorMessage(error, '保存失败')
+    if (message !== 'UNAUTHORIZED') {
+      uni.showToast({ title: message.slice(0, 40), icon: 'none' })
+    }
+  } finally {
+    saving.value = false
+  }
 }
 </script>
 
@@ -191,7 +248,7 @@ function saveAndUse() {
       </view>
 
       <view class="addr-cta">
-        <SoorakButton block @click="saveAndUse">保存并使用</SoorakButton>
+        <SoorakButton block @click="saveAndUse">{{ saving ? '保存中…' : '保存并使用' }}</SoorakButton>
       </view>
     </view>
   </SoorakChrome>

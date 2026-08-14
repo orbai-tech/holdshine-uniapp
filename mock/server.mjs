@@ -14,7 +14,20 @@ import {
   removeCartItem,
   updateCartItem,
 } from './lib/commerce.mjs'
-import { listMyCoupons, previewCheckout } from './lib/coupons.mjs'
+import {
+  createAddress,
+  deleteAddress,
+  getAddress,
+  listAddresses,
+  updateAddress,
+} from './lib/addresses.mjs'
+import {
+  claimCoupon,
+  listAvailableCoupons,
+  listMyCoupons,
+  previewCheckout,
+  redeemCoupon,
+} from './lib/coupons.mjs'
 import { buildMenu, stores } from './lib/fixtures.mjs'
 import { forgetSession, getUser, hasSession, rememberSession, toMpUserinfo } from './lib/store.mjs'
 import { issueToken, verifyToken } from './lib/token.mjs'
@@ -180,6 +193,14 @@ async function handle(req, res) {
         'GET /api/mp/cart',
         'POST /api/mp/cart/quote',
         'POST /api/mp/cart/items',
+        'GET /api/mp/coupons/mine',
+        'GET /api/mp/coupons/available',
+        'POST /api/mp/coupons/claim',
+        'POST /api/mp/coupons/redeem',
+        'POST /api/mp/checkout/preview',
+        'GET /api/mp/addresses',
+        'POST /api/mp/addresses',
+        'GET|PUT|DELETE /api/mp/addresses/:id',
         'GET /api/mp/orders',
         'POST /api/mp/orders',
         'POST /api/mp/payments/prepay',
@@ -357,6 +378,40 @@ async function handle(req, res) {
     return
   }
 
+  if (req.method === 'GET' && path === '/api/mp/coupons/available') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    try {
+      ok(res, listAvailableCoupons(url.searchParams.get('store_id')))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
+    return
+  }
+
+  if (req.method === 'POST' && path === '/api/mp/coupons/claim') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    try {
+      ok(res, claimCoupon(await readBody(req)))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
+    return
+  }
+
+  if (req.method === 'POST' && path === '/api/mp/coupons/redeem') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    try {
+      const body = await readBody(req)
+      ok(res, redeemCoupon(body))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
+    return
+  }
+
   if (req.method === 'POST' && path === '/api/mp/checkout/preview') {
     const session = requireMpSession(req, res)
     if (!session) return
@@ -369,6 +424,43 @@ async function handle(req, res) {
       }
       const cart = getCart(session.user.openid, storeId)
       ok(res, previewCheckout(cart, body))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
+    return
+  }
+
+  if (req.method === 'GET' && path === '/api/mp/addresses') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    ok(res, listAddresses(session.user.openid))
+    return
+  }
+
+  if (req.method === 'POST' && path === '/api/mp/addresses') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    try {
+      ok(res, createAddress(session.user.openid, await readBody(req)))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
+    return
+  }
+
+  const addressMatch = path.match(/^\/api\/mp\/addresses\/(\d+)$/)
+  if (addressMatch && (req.method === 'GET' || req.method === 'PUT' || req.method === 'DELETE')) {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    try {
+      const addressId = addressMatch[1]
+      if (req.method === 'GET') {
+        ok(res, getAddress(session.user.openid, addressId))
+      } else if (req.method === 'PUT') {
+        ok(res, updateAddress(session.user.openid, addressId, await readBody(req)))
+      } else {
+        ok(res, deleteAddress(session.user.openid, addressId))
+      }
     } catch (error) {
       json(res, 200, { code: error.code || 40000, message: error.message, data: null })
     }
@@ -449,7 +541,7 @@ if (isDirectRun) {
   server.listen(config.port, '0.0.0.0', () => {
     console.log(`[mock] 元气善筑假后端已启动 http://127.0.0.1:${config.port}`)
     console.log(
-      '[mock] 已接入路径：/api/mp/auth/*  /api/mp/stores  /api/mp/stores/:id/menu  /api/mp/cart  /api/mp/cart/quote  /api/mp/coupons/mine  /api/mp/checkout/preview  /api/mp/orders  /api/mp/payments/*',
+      '[mock] 已接入路径：/api/mp/auth/*  /api/mp/stores  /api/mp/stores/:id/menu  /api/mp/cart  /api/mp/coupons/*  /api/mp/addresses  /api/mp/orders  /api/mp/payments/*',
     )
     if (!config.wxAppId || !config.wxSecret) {
       console.warn('[mock] 未配置 WX_APPID / WX_SECRET，仅提供模拟会话')

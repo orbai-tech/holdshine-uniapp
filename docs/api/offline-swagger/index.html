@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>咖啡点单系统 API（离线 Swagger）</title>
+  <link rel="stylesheet" href="./swagger-ui/swagger-ui.css" />
+  <style>
+    html { box-sizing: border-box; overflow-y: scroll; }
+    *, *:before, *:after { box-sizing: inherit; }
+    body { margin: 0; background: #fafafa; }
+    .offline-banner {
+      background: #0f766e; color: #fff; padding: 10px 16px; font: 14px/1.4 system-ui, sans-serif;
+    }
+    .offline-banner code { background: rgba(255,255,255,.15); padding: 1px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="offline-banner">
+    离线包 · 直接双击打开本目录 <code>index.html</code> 即可（已内嵌 OpenAPI，不依赖网络/文档站）。
+    「Try it out」仍需要业务后端在线。
+  </div>
+  <div id="swagger-ui"></div>
+  <script src="./swagger-ui/swagger-ui-bundle.js"></script>
+  <script src="./swagger-ui/swagger-ui-standalone-preset.js"></script>
+  <script src="./openapi.bundle.js"></script>
+  <script>
+    window.onload = function () {
+      window.ui = SwaggerUIBundle({
+        spec: window.OPENAPI_SPEC,
+        dom_id: "#swagger-ui",
+        deepLinking: true,
+        presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+        plugins: [SwaggerUIBundle.plugins.DownloadUrl],
+        layout: "StandaloneLayout",
+        validatorUrl: null
+      });
+    };
+  </script>
+</body>
+</html>

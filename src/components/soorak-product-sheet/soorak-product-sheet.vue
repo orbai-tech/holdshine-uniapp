@@ -10,13 +10,12 @@ export default {
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import SoorakSheet from '@/components/soorak-sheet/soorak-sheet.vue'
-import { quoteCartItem } from '@/common/apis/cartApi'
 import { useCartStore } from '@/stores/cart'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSessionStore } from '@/stores/session'
 import type { CupSize, DrinkTemp } from '@/common/types/commerce'
 import { toServiceMode } from '@/common/types/orderEnums'
-import { parseAmount } from '@/utils/money'
+import { calcLineUnit, calcLocalFallbackUnit } from '@/utils/pricing'
 
 const SIZES: CupSize[] = ['中杯', '大杯']
 const TEMPS: DrinkTemp[] = ['热', '正常冰', '少冰']
@@ -42,11 +41,6 @@ const temp = ref<DrinkTemp>('热')
 const extras = ref<string[]>([])
 const qty = ref(1)
 const storyOpen = ref(false)
-/** 后端询价得到的单价（SKU + 加料）；数量仍前端乘 */
-const quotedUnit = ref(0)
-const quoteBusy = ref(false)
-let quoteTimer: ReturnType<typeof setTimeout> | null = null
-let quoteSeq = 0
 
 watch(
   () => product.value?.id,
@@ -67,55 +61,32 @@ watch(
     extras.value = []
     qty.value = 1
     storyOpen.value = false
-    quotedUnit.value = current?.price ?? 0
   },
 )
 
-/** FIELD-GAP-005：无 skus/option_groups 时本地兜底，无法走后端询价 */
+/** FIELD-GAP-005：无 skus/option_groups 时本地兜底 */
 const localFallbackUnit = computed(() => {
   if (!product.value) return 0
-  return product.value.price + (size.value === '大杯' ? 3 : 0) + extras.value.length * 3
+  return calcLocalFallbackUnit(product.value.price, size.value, extras.value.length)
+})
+
+/** 有菜单规格：SKU sale_price + 已选 option price_delta，零请求即时试算 */
+const apiUnit = computed(() => {
+  if (!product.value || !hasApiOptions.value) return 0
+  const sku =
+    product.value.skus?.find((item) => item.sku_id === skuId.value) ?? product.value.skus?.[0]
+  const selected = new Set(optionIds.value)
+  const options = (product.value.optionGroups ?? []).flatMap((group) =>
+    group.values.filter((item) => selected.has(item.option_id)),
+  )
+  return calcLineUnit(sku?.sale_price ?? product.value.price, options)
 })
 
 const unit = computed(() => {
   if (!product.value) return 0
-  if (hasApiOptions.value) return quotedUnit.value
+  if (hasApiOptions.value) return apiUnit.value
   return localFallbackUnit.value
 })
-
-watch(
-  [() => product.value?.productId, skuId, optionIds, hasApiOptions],
-  () => {
-    if (!product.value || !hasApiOptions.value) return
-    const storeId = catalog.currentStoreId
-    const productId = product.value.productId
-    if (storeId == null || productId == null) return
-    if (quoteTimer) clearTimeout(quoteTimer)
-    quoteTimer = setTimeout(() => {
-      const seq = ++quoteSeq
-      quoteBusy.value = true
-      void quoteCartItem({
-        store_id: storeId,
-        product_id: productId,
-        sku_id: skuId.value,
-        option_ids: [...optionIds.value],
-        quantity: 1,
-      })
-        .then((res) => {
-          if (seq !== quoteSeq) return
-          quotedUnit.value = parseAmount(res.unit_price) + parseAmount(res.option_amount)
-        })
-        .catch(() => {
-          if (seq !== quoteSeq) return
-          uni.showToast({ title: '询价失败', icon: 'none' })
-        })
-        .finally(() => {
-          if (seq === quoteSeq) quoteBusy.value = false
-        })
-    }, 150)
-  },
-  { deep: true, immediate: true },
-)
 
 const sheetOpen = computed(() => product.value != null)
 const sheetTitle = computed(() => (isRetail.value ? '商品详情' : '选规格'))

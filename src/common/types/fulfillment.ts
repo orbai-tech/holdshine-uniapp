@@ -14,7 +14,10 @@ export type AddressGender = '先生' | '女士'
 export type AddressTag = '家' | '公司' | '学校' | '其他'
 
 export interface DeliveryAddress {
+  /** 后端 AddressRes.address_id（string）；本地缓存用 */
+  address_id?: string
   name: string
+  /** UI-only；不在 AddressUpsertReq / AddressRes */
   gender: AddressGender
   phone: string
   /** 地图选点/行政区划展示文案 */

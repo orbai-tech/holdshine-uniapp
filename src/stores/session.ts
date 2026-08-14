@@ -1,6 +1,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { fetchAuthProfile, loginByWxCode, logoutRemote } from '@/common/apis/authApi'
+import { addressResToDelivery, listAddresses } from '@/common/apis/addressApi'
 import type { RitualId } from '@/common/types/catalog'
 import type { AuthUser } from '@/common/types/auth'
 import type {
@@ -135,6 +136,7 @@ export const useSessionStore = defineStore('session', () => {
     try {
       const profile = await fetchAuthProfile()
       applySession(token.value, profile)
+      void hydrateDeliveryAddressFromApi()
     } catch {
       clearSession()
     }
@@ -149,14 +151,14 @@ export const useSessionStore = defineStore('session', () => {
       const result = await loginByWxCode(payload)
       lastLoginMock.value = false
       applySession(result.token, result.user)
+      void hydrateDeliveryAddressFromApi()
     } finally {
       authBusy.value = false
     }
   }
 
-  /** 购物车/下单等写操作入口：已登录直接过；否则静默换票。 */
+  /** 购物车/下单等写操作入口：本地有会话则先验 /me（mock 重启后内存票会失效）；失败则静默换票。 */
   async function ensureLogin(): Promise<boolean> {
-    if (loggedIn.value) return true
     if (authBusy.value) {
       await new Promise<void>((resolve) => {
         const stop = watch(authBusy, (busy) => {
@@ -166,7 +168,17 @@ export const useSessionStore = defineStore('session', () => {
           }
         })
       })
-      return loggedIn.value
+      if (loggedIn.value) return true
+    }
+    if (loggedIn.value) {
+      try {
+        const profile = await fetchAuthProfile()
+        applySession(token.value, profile)
+        return true
+      } catch {
+        // 拦截器已清无效票；继续换票
+        clearSession()
+      }
     }
     try {
       await login()
@@ -282,6 +294,24 @@ export const useSessionStore = defineStore('session', () => {
     uni.setStorageSync(ADDRESS_KEY, next)
   }
 
+  /**
+   * 从 `/api/mp/addresses` 取默认或首条写入本地缓存。
+   * 失败不挡登录；gender 契约无，保留本地已有或默认「先生」。
+   */
+  async function hydrateDeliveryAddressFromApi(): Promise<void> {
+    if (!token.value) return
+    try {
+      const data = await listAddresses()
+      const list = data?.list ?? []
+      if (!list.length) return
+      const preferred = list.find((row) => row.is_default === 1) ?? list[0]
+      const prevGender = deliveryAddress.value?.gender ?? '先生'
+      saveDeliveryAddress(addressResToDelivery(preferred, prevGender))
+    } catch (error) {
+      console.warn('[元气善筑] hydrateDeliveryAddressFromApi 失败', error)
+    }
+  }
+
   function orderModeLabel(): '堂食' | '外带' | '外卖' {
     if (fulfillmentMode.value === 'delivery') return '外卖'
     if (pickupSubMode.value === 'pack') return '外带'
@@ -321,6 +351,7 @@ export const useSessionStore = defineStore('session', () => {
     setPickupSubMode,
     setTableCode,
     saveDeliveryAddress,
+    hydrateDeliveryAddressFromApi,
     orderModeLabel,
     openProduct,
     closeProduct,

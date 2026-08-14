@@ -1,5 +1,5 @@
 import { findProduct, findStore, money } from './fixtures.mjs'
-import { applyCouponDiscount } from './coupons.mjs'
+import { applyCouponDiscount, redeemCoupon } from './coupons.mjs'
 
 const carts = new Map()
 const ordersByOpenid = new Map()
@@ -259,7 +259,22 @@ export function createOrderFromCart(openid, body) {
     options: item.options ?? [],
   }))
   const subtotal = Number(cart.product_amount) + Number(cart.option_amount)
-  const { discount, coupon_id: appliedCouponId } = applyCouponDiscount(subtotal, body.coupon_id)
+  const couponKey =
+    body.customer_coupon_id == null || body.customer_coupon_id === ''
+      ? body.coupon_id == null || body.coupon_id === ''
+        ? null
+        : String(body.coupon_id)
+      : String(body.customer_coupon_id)
+  const { discount, customer_coupon_id: appliedCouponId } = applyCouponDiscount(
+    subtotal,
+    couponKey,
+  )
+  if (appliedCouponId != null) {
+    redeemCoupon(
+      { customer_coupon_id: appliedCouponId, store_id: storeId, order_id: orderId },
+      { subtotal, orderId },
+    )
+  }
   const payable = Math.max(0, subtotal - discount)
   const order = {
     order_id: orderId,
@@ -275,7 +290,8 @@ export function createOrderFromCart(openid, body) {
     packing_fee: money(0),
     delivery_fee: money(0),
     discount_amount: money(discount),
-    coupon_id: appliedCouponId,
+    customer_coupon_id: appliedCouponId,
+    coupon_id: appliedCouponId == null ? null : Number(appliedCouponId),
     payable_amount: money(payable),
     paid_amount: money(0),
     pickup_code: null,

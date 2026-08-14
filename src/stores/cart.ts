@@ -7,14 +7,13 @@ import type { CartAddReq, CartItemRes, CartRes } from '@/common/types/cart'
 import type { CartItem } from '@/common/types/commerce'
 import { SERVICE_MODE, toServiceMode, toTableId } from '@/common/types/orderEnums'
 import { parseAmount } from '@/utils/money'
+import { amountsDiffer, calcLocalCartLineAmount } from '@/utils/pricing'
 import { settlePayment } from '@/utils/pay'
 import { useCatalogStore } from './catalog'
 import { useSessionStore } from './session'
 
 export function lineAmount(item: CartItem): number {
-  const extra = item.extras.length * 3
-  const sizeUp = item.size === '大杯' ? 3 : 0
-  return (item.product.price + extra + sizeUp) * item.qty
+  return calcLocalCartLineAmount(item)
 }
 
 export const useCartStore = defineStore('cart', () => {
@@ -98,8 +97,14 @@ export const useCartStore = defineStore('cart', () => {
     items.value = next
   }
 
-  /** createOrder → prepay → settlePayment → 刷新购物车 → 订单 Tab */
-  async function submitCheckout(opts: { remark?: string; coupon_id?: number | null } = {}) {
+  /** createOrder（权威重算+核销）→ prepay → settlePayment → 刷新购物车 → 订单 Tab */
+  async function submitCheckout(
+    opts: {
+      remark?: string
+      customer_coupon_id?: string | null
+      client_payable_amount?: number | null
+    } = {},
+  ) {
     if (writeBusy.value) return
     const session = useSessionStore()
     if (!(await session.ensureLogin())) throw new Error('请先登录')
@@ -113,14 +118,22 @@ export const useCartStore = defineStore('cart', () => {
 
     writeBusy.value = true
     try {
+      const clientPayable =
+        opts.client_payable_amount == null ? null : Number(opts.client_payable_amount)
       const order = await createOrder({
         store_id: storeId,
         service_mode: serviceMode,
         from_cart: true,
         table_id: serviceMode === SERVICE_MODE.DINE_IN ? toTableId(session.tableCode) : null,
         customer_remark: opts.remark?.trim() ? opts.remark.trim() : null,
-        coupon_id: opts.coupon_id ?? null,
+        customer_coupon_id: opts.customer_coupon_id ?? null,
+        client_payable_amount:
+          clientPayable == null ? null : clientPayable.toFixed(2),
       })
+      const serverPayable = parseAmount(order.payable_amount)
+      if (clientPayable != null && amountsDiffer(clientPayable, serverPayable)) {
+        uni.showToast({ title: '价格已更新', icon: 'none' })
+      }
       const payParams = await prepay(order.order_id)
       await settlePayment(order.order_id, payParams)
       items.value = []
