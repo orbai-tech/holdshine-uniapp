@@ -2,7 +2,19 @@ import http from 'node:http'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { config } from './config.mjs'
-import { addCartItem, getCart, listOrders, removeCartItem, updateCartItem } from './lib/commerce.mjs'
+import {
+  addCartItem,
+  createOrderFromCart,
+  getCart,
+  getOrder,
+  listOrders,
+  mockPaid,
+  prepay,
+  quoteLine,
+  removeCartItem,
+  updateCartItem,
+} from './lib/commerce.mjs'
+import { listMyCoupons, previewCheckout } from './lib/coupons.mjs'
 import { buildMenu, stores } from './lib/fixtures.mjs'
 import { forgetSession, getUser, hasSession, rememberSession, toMpUserinfo } from './lib/store.mjs'
 import { issueToken, verifyToken } from './lib/token.mjs'
@@ -104,6 +116,47 @@ function pageQuery(url) {
   return { page, pageSize }
 }
 
+function distanceKm(from, to) {
+  const toRad = (deg) => (deg * Math.PI) / 180
+  const earth = 6371
+  const dLat = toRad(to.latitude - from.latitude)
+  const dLng = toRad(to.longitude - from.longitude)
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(from.latitude)) * Math.cos(toRad(to.latitude)) * Math.sin(dLng / 2) ** 2
+  return earth * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+/** admin fixture → MpStoreRes；有顾客坐标时填 distance_km。 */
+function toMpStore(store, point) {
+  const lat = store.latitude != null ? Number(store.latitude) : null
+  const lng = store.longitude != null ? Number(store.longitude) : null
+  let distance_km = null
+  if (point && Number.isFinite(lat) && Number.isFinite(lng)) {
+    distance_km = Math.round(distanceKm(point, { latitude: lat, longitude: lng }) * 1000) / 1000
+  }
+  return {
+    store_id: store.store_id,
+    store_code: store.store_code,
+    store_name: store.store_name,
+    status: store.status,
+    mobile: store.mobile,
+    cover_path: store.cover_path,
+    logo_path: store.logo_path,
+    city: store.city,
+    district: store.district,
+    address: store.address,
+    business_hours: store.business_hours,
+    enable_dine_in: store.enable_dine_in,
+    enable_takeaway: store.enable_takeaway,
+    enable_mall: store.enable_mall,
+    enable_points: store.enable_points,
+    latitude: store.latitude,
+    longitude: store.longitude,
+    distance_km,
+  }
+}
+
 async function handle(req, res) {
   const url = new URL(req.url || '/', `http://${req.headers.host || '127.0.0.1'}`)
   const path = url.pathname.replace(/\/+$/, '') || '/'
@@ -122,11 +175,15 @@ async function handle(req, res) {
         'POST /api/mp/auth/wx-login',
         'GET /api/mp/auth/me',
         'POST /api/mp/auth/logout',
-        'GET /api/admin/stores',
+        'GET /api/mp/stores',
         'GET /api/mp/stores/:id/menu',
         'GET /api/mp/cart',
+        'POST /api/mp/cart/quote',
         'POST /api/mp/cart/items',
         'GET /api/mp/orders',
+        'POST /api/mp/orders',
+        'POST /api/mp/payments/prepay',
+        'POST /api/mp/payments/mock-paid',
       ],
     })
     return
@@ -203,6 +260,36 @@ async function handle(req, res) {
     return
   }
 
+  if (req.method === 'GET' && path === '/api/mp/stores') {
+    const keyword = (url.searchParams.get('keyword') || '').trim()
+    const { page, pageSize } = pageQuery(url)
+    const latRaw = url.searchParams.get('latitude')
+    const lngRaw = url.searchParams.get('longitude')
+    const lat = latRaw != null && latRaw !== '' ? Number(latRaw) : null
+    const lng = lngRaw != null && lngRaw !== '' ? Number(lngRaw) : null
+    const hasPoint = Number.isFinite(lat) && Number.isFinite(lng)
+
+    let list = stores.map((item) => toMpStore(item, hasPoint ? { latitude: lat, longitude: lng } : null))
+    if (keyword) {
+      list = list.filter((item) => item.store_name.includes(keyword) || item.store_code.includes(keyword))
+    }
+    if (hasPoint) {
+      list = [...list].sort((a, b) => {
+        const da = a.distance_km == null ? Number.POSITIVE_INFINITY : a.distance_km
+        const db = b.distance_km == null ? Number.POSITIVE_INFINITY : b.distance_km
+        return da - db
+      })
+    }
+    const start = (page - 1) * pageSize
+    ok(res, {
+      list: list.slice(start, start + pageSize),
+      total: list.length,
+      page,
+      page_size: pageSize,
+    })
+    return
+  }
+
   const menuMatch = path.match(/^\/api\/mp\/stores\/(\d+)\/menu$/)
   if (req.method === 'GET' && menuMatch) {
     const menu = buildMenu(menuMatch[1])
@@ -223,6 +310,15 @@ async function handle(req, res) {
       return
     }
     ok(res, getCart(session.user.openid, storeId))
+    return
+  }
+
+  if (req.method === 'POST' && path === '/api/mp/cart/quote') {
+    try {
+      ok(res, quoteLine(await readBody(req)))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
     return
   }
 
@@ -254,11 +350,83 @@ async function handle(req, res) {
     return
   }
 
+  if (req.method === 'GET' && path === '/api/mp/coupons/mine') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    ok(res, listMyCoupons())
+    return
+  }
+
+  if (req.method === 'POST' && path === '/api/mp/checkout/preview') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    try {
+      const body = await readBody(req)
+      const storeId = Number(body.store_id)
+      if (!Number.isInteger(storeId) || storeId <= 0) {
+        json(res, 200, { code: 40000, message: '缺少 store_id', data: null })
+        return
+      }
+      const cart = getCart(session.user.openid, storeId)
+      ok(res, previewCheckout(cart, body))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
+    return
+  }
+
   if (req.method === 'GET' && path === '/api/mp/orders') {
     const session = requireMpSession(req, res)
     if (!session) return
     const { page, pageSize } = pageQuery(url)
     ok(res, listOrders(session.user.openid, page, pageSize))
+    return
+  }
+
+  if (req.method === 'POST' && path === '/api/mp/orders') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    try {
+      ok(res, createOrderFromCart(session.user.openid, await readBody(req)))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
+    return
+  }
+
+  const orderMatch = path.match(/^\/api\/mp\/orders\/(\d+)$/)
+  if (req.method === 'GET' && orderMatch) {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    try {
+      ok(res, getOrder(session.user.openid, orderMatch[1]))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
+    return
+  }
+
+  if (req.method === 'POST' && path === '/api/mp/payments/prepay') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    try {
+      const body = await readBody(req)
+      ok(res, prepay(session.user.openid, body.order_id))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
+    return
+  }
+
+  if (req.method === 'POST' && path === '/api/mp/payments/mock-paid') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    try {
+      const body = await readBody(req)
+      ok(res, mockPaid(session.user.openid, body.order_id))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
     return
   }
 
@@ -280,7 +448,9 @@ if (isDirectRun) {
   const server = createServer()
   server.listen(config.port, '0.0.0.0', () => {
     console.log(`[mock] 元气善筑假后端已启动 http://127.0.0.1:${config.port}`)
-    console.log('[mock] 已接入路径：/api/mp/auth/*  /api/admin/stores  /api/mp/stores/:id/menu  /api/mp/cart  /api/mp/orders')
+    console.log(
+      '[mock] 已接入路径：/api/mp/auth/*  /api/mp/stores  /api/mp/stores/:id/menu  /api/mp/cart  /api/mp/cart/quote  /api/mp/coupons/mine  /api/mp/checkout/preview  /api/mp/orders  /api/mp/payments/*',
+    )
     if (!config.wxAppId || !config.wxSecret) {
       console.warn('[mock] 未配置 WX_APPID / WX_SECRET，仅提供模拟会话')
     }

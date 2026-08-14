@@ -3,6 +3,12 @@ import { defineStore } from 'pinia'
 import { fetchAuthProfile, loginByWxCode, logoutRemote } from '@/common/apis/authApi'
 import type { RitualId } from '@/common/types/catalog'
 import type { AuthUser } from '@/common/types/auth'
+import type {
+  DeliveryAddress,
+  FulfillmentMode,
+  PickupSubMode,
+  TableCode,
+} from '@/common/types/fulfillment'
 import {
   clearSessionStorage,
   isSessionExpired,
@@ -21,7 +27,21 @@ const TAB_URLS = [
   '/pages/mine/index',
 ] as const
 
+const ADDRESS_KEY = 'soorak_delivery_address'
+
 export type TabUrl = (typeof TAB_URLS)[number]
+
+function readStoredAddress(): DeliveryAddress | null {
+  try {
+    const raw = uni.getStorageSync(ADDRESS_KEY)
+    if (!raw || typeof raw !== 'object') return null
+    const row = raw as DeliveryAddress
+    if (typeof row.name !== 'string' || typeof row.phone !== 'string') return null
+    return row
+  } catch {
+    return null
+  }
+}
 
 export const useSessionStore = defineStore('session', () => {
   const ritualFilter = ref<RitualId | null>(null)
@@ -33,6 +53,11 @@ export const useSessionStore = defineStore('session', () => {
   const user = ref<AuthUser | null>(null)
   const authBusy = ref(false)
   const lastLoginMock = ref(false)
+
+  const fulfillmentMode = ref<FulfillmentMode | null>(null)
+  const pickupSubMode = ref<PickupSubMode>('dine_in')
+  const tableCode = ref<TableCode | null>(null)
+  const deliveryAddress = ref<DeliveryAddress | null>(readStoredAddress())
 
   const productOpen = computed(() => Boolean(productId.value))
   const loggedIn = computed(() => Boolean(token.value && user.value))
@@ -129,6 +154,29 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
+  /** 购物车/下单等写操作入口：已登录直接过；否则静默换票。 */
+  async function ensureLogin(): Promise<boolean> {
+    if (loggedIn.value) return true
+    if (authBusy.value) {
+      await new Promise<void>((resolve) => {
+        const stop = watch(authBusy, (busy) => {
+          if (!busy) {
+            stop()
+            resolve()
+          }
+        })
+      })
+      return loggedIn.value
+    }
+    try {
+      await login()
+      return loggedIn.value
+    } catch (error) {
+      console.warn('[元气善筑] ensureLogin 失败', error)
+      return false
+    }
+  }
+
   async function logout() {
     if (authBusy.value) return
     authBusy.value = true
@@ -178,13 +226,66 @@ export const useSessionStore = defineStore('session', () => {
     goTab('/pages/menu/index')
   }
 
-  function openStorePicker() {
+  function openStorePicker(mode?: FulfillmentMode | null) {
+    productId.value = null
+    cartOpen.value = false
+    const next = mode === undefined ? fulfillmentMode.value : mode
+    const query = next ? `?mode=${next}` : ''
+    uni.navigateTo({
+      url: `/pages/stores/index${query}`,
+      fail() {},
+    })
+  }
+
+  function openAddressEditor() {
     productId.value = null
     cartOpen.value = false
     uni.navigateTo({
-      url: '/pages/stores/index',
+      url: '/pages/address/edit',
       fail() {},
     })
+  }
+
+  function startDineIn() {
+    fulfillmentMode.value = 'dine_in'
+    pickupSubMode.value = 'dine_in'
+    openStorePicker('dine_in')
+  }
+
+  function startDelivery() {
+    fulfillmentMode.value = 'delivery'
+    tableCode.value = null
+    openAddressEditor()
+  }
+
+  function setFulfillmentMode(mode: FulfillmentMode) {
+    if (mode === fulfillmentMode.value) return
+    fulfillmentMode.value = mode
+    if (mode === 'delivery') {
+      tableCode.value = null
+      pickupSubMode.value = 'dine_in'
+    }
+  }
+
+  function setPickupSubMode(mode: PickupSubMode) {
+    pickupSubMode.value = mode
+    if (mode === 'pack') tableCode.value = null
+  }
+
+  function setTableCode(code: TableCode | null) {
+    tableCode.value = code
+    pickupSubMode.value = 'dine_in'
+  }
+
+  function saveDeliveryAddress(next: DeliveryAddress) {
+    deliveryAddress.value = next
+    uni.setStorageSync(ADDRESS_KEY, next)
+  }
+
+  function orderModeLabel(): '堂食' | '外带' | '外卖' {
+    if (fulfillmentMode.value === 'delivery') return '外卖'
+    if (pickupSubMode.value === 'pack') return '外带'
+    return '堂食'
   }
 
   return {
@@ -200,14 +301,27 @@ export const useSessionStore = defineStore('session', () => {
     loggedIn,
     productOpen,
     tabBarVisible,
+    fulfillmentMode,
+    pickupSubMode,
+    tableCode,
+    deliveryAddress,
     restoreSession,
     verifySession,
     login,
+    ensureLogin,
     logout,
     handleUnauthorized,
     setRitualFilter,
     setCategoryId,
     openStorePicker,
+    openAddressEditor,
+    startDineIn,
+    startDelivery,
+    setFulfillmentMode,
+    setPickupSubMode,
+    setTableCode,
+    saveDeliveryAddress,
+    orderModeLabel,
     openProduct,
     closeProduct,
     setCartOpen,

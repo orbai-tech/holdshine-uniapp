@@ -14,6 +14,7 @@ import SoorakButton from '@/components/soorak-button/soorak-button.vue'
 import { lineAmount, useCartStore } from '@/stores/cart'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSessionStore } from '@/stores/session'
+import { formatItemSpec } from '@/utils/orderItemLabel'
 
 const session = useSessionStore()
 const cart = useCartStore()
@@ -35,6 +36,14 @@ function goMenu() {
   session.goTab('/pages/menu/index')
 }
 
+function goCheckout() {
+  session.setCartOpen(false)
+  uni.navigateTo({
+    url: '/pages/checkout/index',
+    fail() {},
+  })
+}
+
 function itemImage(productId: number) {
   return catalog.findProduct(String(productId))?.img || '/static/images/products/latte.jpg'
 }
@@ -52,7 +61,7 @@ function itemImage(productId: number) {
         <image :src="itemImage(item.product_id)" mode="aspectFill" class="cart-row__img" />
         <view class="cart-row__body">
           <text class="cart-row__name">{{ item.product_name }}</text>
-          <text class="cart-row__meta">{{ item.sku_name || '标准装' }}</text>
+          <text class="cart-row__meta">{{ formatItemSpec(item) || '标准装' }}</text>
           <view class="cart-row__price">
             <text>¥{{ cart.itemLineAmount(item) }}</text>
           </view>
@@ -70,7 +79,7 @@ function itemImage(productId: number) {
         <view class="cart-row__body">
           <text class="cart-row__name">{{ item.product.name }}</text>
           <text class="cart-row__meta">
-            {{ item.product.cat !== 'retail' ? `${item.size} / ${item.temp}` : '标准装' }}{{ item.extras.length ? ` · 加料 ${item.extras.length}` : '' }}
+            {{ item.product.cat !== 'retail' ? `${item.size} / ${item.temp}` : '标准装' }}{{ item.extras.length ? ` · ${item.extras.join(' · ')}` : '' }}
           </text>
           <view class="cart-row__price">
             <text>¥{{ lineAmount(item) }}</text>
@@ -93,7 +102,7 @@ function itemImage(productId: number) {
         <view
           class="cart-cta__btn"
           hover-class="cart-cta__btn--active"
-          @click="cart.placeOrder()"
+          @click="goCheckout"
         >
           <text class="cart-cta__btn-label">确认下单</text>
         </view>

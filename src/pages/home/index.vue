@@ -47,7 +47,10 @@ onShow(() => {
             <text>{{ catalog.brand.name }}</text>
           </view>
           <text class="home-hero__belief">{{ catalog.brand.belief }}</text>
-          <SoorakButton @click="session.goTab('/pages/menu/index')">去点单</SoorakButton>
+          <view class="home-hero__actions">
+            <SoorakButton @click="session.startDineIn()">到店堂食</SoorakButton>
+            <SoorakButton variant="secondary" @click="session.startDelivery()">外卖配送</SoorakButton>
+          </view>
         </view>
       </view>
 
@@ -173,6 +176,17 @@ onShow(() => {
   font-weight: 300;
   line-height: 1.7;
   color: rgba(247, 244, 238, 0.82);
+}
+
+.home-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.home-hero__actions :deep(.mp-btn--secondary) {
+  color: $mp-paper;
+  box-shadow: inset 0 0 0 1rpx rgba(247, 244, 238, 0.45);
 }
 
 .home-store {

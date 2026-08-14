@@ -6,6 +6,7 @@ import SoorakButton from '@/components/soorak-button/soorak-button.vue'
 import ProductCard from './components/product-card.vue'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSessionStore } from '@/stores/session'
+import type { FulfillmentMode } from '@/common/types/fulfillment'
 
 const catalog = useCatalogStore()
 const session = useSessionStore()
@@ -26,6 +27,25 @@ const list = computed(() => {
   return drinkProducts.value.filter((item) => item.categoryId === active)
 })
 
+const etaText = computed(() => {
+  if (session.fulfillmentMode === 'delivery') {
+    const addr = session.deliveryAddress
+    if (!addr) return '外卖 · 待填地址'
+    return `外卖 · ${addr.tag}`
+  }
+  const minutes = 8
+  return `堂食 · 约 ${minutes} 分钟`
+})
+
+const contextSub = computed(() => {
+  if (session.fulfillmentMode === 'delivery') {
+    const addr = session.deliveryAddress
+    if (!addr) return '请完善收货地址'
+    return `${addr.region} ${addr.door}`
+  }
+  return catalog.brand?.store || '选择门店'
+})
+
 onShow(() => {
   session.hideNativeTabBar()
   void catalog.ensureLoaded().then(() => {
@@ -40,6 +60,30 @@ onShow(() => {
 
 function setFilter(id: number | null) {
   session.setCategoryId(id)
+}
+
+function onModeTap(mode: FulfillmentMode) {
+  if (mode === 'dine_in') {
+    if (session.fulfillmentMode === 'dine_in') {
+      session.openStorePicker('dine_in')
+      return
+    }
+    session.startDineIn()
+    return
+  }
+  if (session.fulfillmentMode === 'delivery' && session.deliveryAddress) {
+    session.openStorePicker('delivery')
+    return
+  }
+  session.startDelivery()
+}
+
+function onContextTap() {
+  if (session.fulfillmentMode === 'delivery') {
+    session.openAddressEditor()
+    return
+  }
+  session.openStorePicker(session.fulfillmentMode)
 }
 </script>
 
@@ -56,9 +100,31 @@ function setFilter(id: number | null) {
       <text class="t-caption">暂无商品</text>
     </view>
     <view v-else class="page-menu">
-      <view class="menu-store">
-        <text class="menu-store__name">{{ catalog.brand?.store }}</text>
-        <text class="menu-store__eta">自取 · 约 8 分钟</text>
+      <view class="menu-fulfill">
+        <view
+          class="menu-fulfill__item"
+          :class="{ 'is-on': session.fulfillmentMode === 'dine_in' }"
+          @click="onModeTap('dine_in')"
+        >
+          到店堂食
+        </view>
+        <view
+          class="menu-fulfill__item"
+          :class="{ 'is-on': session.fulfillmentMode === 'delivery' }"
+          @click="onModeTap('delivery')"
+        >
+          外卖配送
+        </view>
+      </view>
+
+      <view class="menu-store" @click="onContextTap">
+        <view class="menu-store__left">
+          <text class="menu-store__name">{{ contextSub }}</text>
+          <view class="menu-store__switch">
+            {{ session.fulfillmentMode === 'delivery' ? '改地址' : '切换' }}
+          </view>
+        </view>
+        <text class="menu-store__eta">{{ etaText }}</text>
       </view>
 
       <scroll-view scroll-x class="menu-chips" :show-scrollbar="false">
@@ -86,6 +152,32 @@ function setFilter(id: number | null) {
   padding: 0 32rpx;
 }
 
+.menu-fulfill {
+  display: flex;
+  gap: 12rpx;
+  padding-top: 8rpx;
+}
+
+.menu-fulfill__item {
+  flex: 1;
+  min-height: 72rpx;
+  border-radius: 8rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26rpx;
+  color: $mp-text-2;
+  box-shadow: inset 0 0 0 1rpx $mp-border;
+  background: $mp-cloud;
+}
+
+.menu-fulfill__item.is-on {
+  color: $mp-paper;
+  background: $mp-moss;
+  box-shadow: none;
+  font-weight: 500;
+}
+
 .menu-store {
   position: sticky;
   top: 0;
@@ -97,14 +189,34 @@ function setFilter(id: number | null) {
   background: rgba(247, 244, 238, 0.94);
 }
 
+.menu-store__left {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  min-width: 0;
+  flex: 1;
+}
+
 .menu-store__name {
   font-size: 26rpx;
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-store__switch {
+  font-size: 24rpx;
+  letter-spacing: 0.08em;
+  color: $mp-brass;
+  flex-shrink: 0;
 }
 
 .menu-store__eta {
   font-size: 22rpx;
   color: $mp-text-2;
+  flex-shrink: 0;
+  margin-left: 16rpx;
 }
 
 .menu-chips {

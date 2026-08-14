@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { getStoreMenu, menuToCatalog } from '@/common/apis/catalogApi'
-import { listAdminStores, pickNearestStore, storeDistanceLabel, storeIdOf } from '@/common/apis/storeApi'
+import { listMpStores, pickNearestStore, storeDistanceLabel, storeIdOf } from '@/common/apis/storeApi'
 import type { BrandInfo, MenuCategory, Product, Ritual } from '@/common/types/catalog'
 import type { StoreRes } from '@/common/types/store'
 import { getUserLocation } from '@/utils/geo'
@@ -29,9 +29,14 @@ export const useCatalogStore = defineStore('catalog', () => {
 
   async function ensureStore() {
     if (currentStoreId.value && currentStore.value) return
-    const page = await listAdminStores({ page: 1, page_size: 100 })
-    const stores = page.list ?? []
     const here = await getUserLocation()
+    const page = await listMpStores({
+      page: 1,
+      page_size: 100,
+      latitude: here?.latitude,
+      longitude: here?.longitude,
+    })
+    const stores = (page.list ?? []).filter((item) => item.status === 1)
     const picked = pickNearestStore(stores, here)
     currentStore.value = picked
     currentStoreId.value = storeIdOf(picked)

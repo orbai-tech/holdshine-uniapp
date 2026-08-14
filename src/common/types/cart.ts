@@ -7,15 +7,35 @@ export interface CartAddReq {
   option_ids?: number[]
   quantity?: number
   table_id?: number | null
+  service_mode?: number
 }
 
-export interface CartUpdateQtyReq {
-  quantity: number
+export interface CartQuoteReq {
+  store_id: number
+  product_id: number
+  sku_id?: number | null
+  option_ids?: number[]
+  quantity?: number
 }
 
 export interface CartOptionRes {
   option_id?: number
   option_name?: string
+}
+
+export interface CartQuoteRes {
+  product_id: number
+  sku_id: number
+  sku_name: string | null
+  quantity: number
+  unit_price: string
+  option_amount: string
+  line_amount: string
+  options?: CartOptionRes[]
+}
+
+export interface CartUpdateQtyReq {
+  quantity: number
 }
 
 export interface CartItemRes {

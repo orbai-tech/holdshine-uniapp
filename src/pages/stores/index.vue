@@ -1,10 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { onHide, onShow, onUnload } from '@dcloudio/uni-app'
+import { onHide, onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import SoorakChrome from '@/components/soorak-chrome/soorak-chrome.vue'
 import SoorakButton from '@/components/soorak-button/soorak-button.vue'
 import SoorakStoreCard from '@/components/soorak-store-card/soorak-store-card.vue'
-import { listAdminStores, storeDistanceLabel, storeIdOf } from '@/common/apis/storeApi'
+import {
+  listMpStores,
+  listStoresByAddress,
+  storeDistanceLabel,
+  storeIdOf,
+} from '@/common/apis/storeApi'
+import type { FulfillmentMode } from '@/common/types/fulfillment'
 import type { StoreRes } from '@/common/types/store'
 import { useCartStore } from '@/stores/cart'
 import { useCatalogStore } from '@/stores/catalog'
@@ -21,6 +27,7 @@ const session = useSessionStore()
 const catalog = useCatalogStore()
 const cart = useCartStore()
 
+const pickerMode = ref<FulfillmentMode | null>(null)
 const tab = ref<ListTab>('all')
 const loading = ref(false)
 const selecting = ref(false)
@@ -65,6 +72,9 @@ const filtered = computed(() => {
 })
 
 const currentId = computed(() => catalog.currentStore?.store_id ?? '')
+const pageTitle = computed(() =>
+  pickerMode.value === 'delivery' ? '选择配送门店' : '选择门店',
+)
 
 function readRecentIds(): string[] {
   try {
@@ -94,14 +104,50 @@ function distanceSortKey(store: StoreRes) {
   return Number.POSITIVE_INFINITY
 }
 
+function parseMode(raw: unknown): FulfillmentMode | null {
+  if (raw === 'dine_in' || raw === 'delivery') return raw
+  return null
+}
+
+onLoad((query) => {
+  pickerMode.value = parseMode(query?.mode) ?? session.fulfillmentMode
+  if (pickerMode.value) session.setFulfillmentMode(pickerMode.value)
+})
+
 async function loadStores() {
   loading.value = true
   errorText.value = ''
   try {
-    here.value = await getUserLocation()
-    const page = await listAdminStores({ page: 1, page_size: 100, status: 1 })
-    stores.value = page.list ?? []
-    if (!stores.value.length) {
+    if (pickerMode.value === 'delivery') {
+      const addr = session.deliveryAddress
+      if (!addr) {
+        errorText.value = '请先填写收货地址'
+        stores.value = []
+        return
+      }
+      if (addr.latitude != null && addr.longitude != null) {
+        here.value = { latitude: addr.latitude, longitude: addr.longitude }
+        stores.value = await listStoresByAddress(here.value)
+      } else {
+        here.value = await getUserLocation()
+        if (here.value) {
+          stores.value = await listStoresByAddress(here.value)
+        } else {
+          const page = await listMpStores({ page: 1, page_size: 100 })
+          stores.value = (page.list ?? []).filter((item) => item.status === 1)
+        }
+      }
+    } else {
+      here.value = await getUserLocation()
+      const page = await listMpStores({
+        page: 1,
+        page_size: 100,
+        latitude: here.value?.latitude,
+        longitude: here.value?.longitude,
+      })
+      stores.value = (page.list ?? []).filter((item) => item.status === 1)
+    }
+    if (!stores.value.length && !errorText.value) {
       errorText.value = '暂无营业门店'
     }
   } catch (error) {
@@ -132,6 +178,10 @@ function onPickCity() {
 }
 
 async function onRelocate() {
+  if (pickerMode.value === 'delivery') {
+    uni.showToast({ title: '外卖按收货地址推荐', icon: 'none' })
+    return
+  }
   uni.showLoading({ title: '定位中', mask: true })
   try {
     here.value = await getUserLocation()
@@ -159,6 +209,10 @@ async function onSelect(store: StoreRes) {
     }
     uni.showToast({ title: same ? '已是当前门店' : '已切换门店', icon: 'none' })
     setTimeout(() => {
+      if (pickerMode.value) {
+        session.goTab('/pages/menu/index')
+        return
+      }
       uni.navigateBack({ fail() {} })
     }, 280)
   } catch (error) {
@@ -184,7 +238,7 @@ onUnload(() => {
 </script>
 
 <template>
-  <SoorakChrome title="选择门店" show-back>
+  <SoorakChrome :title="pageTitle" show-back>
     <view class="page-stores">
       <view class="stores-tabs">
         <view class="stores-tab" :class="{ 'is-on': tab === 'all' }" @click="setTab('all')">
@@ -222,7 +276,10 @@ onUnload(() => {
       </view>
       <view v-else-if="errorText" class="mp-empty">
         <text class="t-caption">{{ errorText }}</text>
-        <SoorakButton @click="loadStores">重试</SoorakButton>
+        <SoorakButton v-if="pickerMode === 'delivery' && !session.deliveryAddress" @click="session.openAddressEditor()">
+          去填写地址
+        </SoorakButton>
+        <SoorakButton v-else @click="loadStores">重试</SoorakButton>
       </view>
       <view v-else-if="!filtered.length" class="mp-empty">
         <text class="t-caption">

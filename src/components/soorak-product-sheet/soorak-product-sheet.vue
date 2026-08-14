@@ -10,10 +10,12 @@ export default {
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import SoorakSheet from '@/components/soorak-sheet/soorak-sheet.vue'
+import { quoteCartItem } from '@/common/apis/cartApi'
 import { useCartStore } from '@/stores/cart'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSessionStore } from '@/stores/session'
 import type { CupSize, DrinkTemp } from '@/common/types/commerce'
+import { toServiceMode } from '@/common/types/orderEnums'
 import { parseAmount } from '@/utils/money'
 
 const SIZES: CupSize[] = ['中杯', '大杯']
@@ -40,6 +42,11 @@ const temp = ref<DrinkTemp>('热')
 const extras = ref<string[]>([])
 const qty = ref(1)
 const storyOpen = ref(false)
+/** 后端询价得到的单价（SKU + 加料）；数量仍前端乘 */
+const quotedUnit = ref(0)
+const quoteBusy = ref(false)
+let quoteTimer: ReturnType<typeof setTimeout> | null = null
+let quoteSeq = 0
 
 watch(
   () => product.value?.id,
@@ -47,37 +54,86 @@ watch(
     const current = product.value
     const firstSku = current?.skus?.[0]
     skuId.value = firstSku?.sku_id ?? null
-    optionIds.value = (current?.optionGroups ?? []).flatMap((group) =>
-      group.values.filter((item) => item.is_default === 1).map((item) => item.option_id),
-    )
+    optionIds.value = (current?.optionGroups ?? []).flatMap((group) => {
+      const defaults = group.values.filter((item) => item.is_default === 1)
+      if (group.select_type === 1) {
+        const pick = defaults[0] ?? (group.is_required === 1 ? group.values[0] : null)
+        return pick ? [pick.option_id] : []
+      }
+      return defaults.map((item) => item.option_id)
+    })
     size.value = '中杯'
     temp.value = '热'
     extras.value = []
     qty.value = 1
     storyOpen.value = false
+    quotedUnit.value = current?.price ?? 0
   },
 )
 
-const selectedSku = computed(() => product.value?.skus?.find((item) => item.sku_id === skuId.value) ?? null)
+/** FIELD-GAP-005：无 skus/option_groups 时本地兜底，无法走后端询价 */
+const localFallbackUnit = computed(() => {
+  if (!product.value) return 0
+  return product.value.price + (size.value === '大杯' ? 3 : 0) + extras.value.length * 3
+})
 
 const unit = computed(() => {
   if (!product.value) return 0
-  if (hasApiOptions.value) {
-    const base = selectedSku.value ? parseAmount(selectedSku.value.sale_price) : product.value.price
-    const extrasSum = (product.value.optionGroups ?? []).flatMap((group) => group.values)
-      .filter((item) => optionIds.value.includes(item.option_id))
-      .reduce((sum, item) => sum + parseAmount(item.price_delta), 0)
-    return base + extrasSum
-  }
-  return product.value.price + (size.value === '大杯' ? 3 : 0) + extras.value.length * 3
+  if (hasApiOptions.value) return quotedUnit.value
+  return localFallbackUnit.value
 })
+
+watch(
+  [() => product.value?.productId, skuId, optionIds, hasApiOptions],
+  () => {
+    if (!product.value || !hasApiOptions.value) return
+    const storeId = catalog.currentStoreId
+    const productId = product.value.productId
+    if (storeId == null || productId == null) return
+    if (quoteTimer) clearTimeout(quoteTimer)
+    quoteTimer = setTimeout(() => {
+      const seq = ++quoteSeq
+      quoteBusy.value = true
+      void quoteCartItem({
+        store_id: storeId,
+        product_id: productId,
+        sku_id: skuId.value,
+        option_ids: [...optionIds.value],
+        quantity: 1,
+      })
+        .then((res) => {
+          if (seq !== quoteSeq) return
+          quotedUnit.value = parseAmount(res.unit_price) + parseAmount(res.option_amount)
+        })
+        .catch(() => {
+          if (seq !== quoteSeq) return
+          uni.showToast({ title: '询价失败', icon: 'none' })
+        })
+        .finally(() => {
+          if (seq === quoteSeq) quoteBusy.value = false
+        })
+    }, 150)
+  },
+  { deep: true, immediate: true },
+)
 
 const sheetOpen = computed(() => product.value != null)
 const sheetTitle = computed(() => (isRetail.value ? '商品详情' : '选规格'))
 
 const showRitual = computed(() => Boolean(product.value?.desc || product.value?.tag))
 
-function toggleOption(id: number) {
+function toggleOption(group: { select_type: number; is_required: number; values: { option_id: number }[] }, id: number) {
+  const groupIds = new Set(group.values.map((item) => item.option_id))
+  const isSingle = group.select_type === 1
+  if (isSingle) {
+    // 单选：同组互斥；必选组不允许点掉当前项
+    if (optionIds.value.includes(id) && group.is_required === 1) return
+    optionIds.value = [
+      ...optionIds.value.filter((item) => !groupIds.has(item)),
+      ...(optionIds.value.includes(id) ? [] : [id]),
+    ]
+    return
+  }
   optionIds.value = optionIds.value.includes(id)
     ? optionIds.value.filter((item) => item !== id)
     : [...optionIds.value, id]
@@ -94,6 +150,7 @@ async function add(openCart = true): Promise<boolean> {
   const storeId = catalog.currentStoreId
   const productId = product.value.productId
   if (storeId == null || productId == null) return false
+  const serviceMode = toServiceMode(session)
   await cart.addToCart(
     {
       product: product.value,
@@ -106,8 +163,10 @@ async function add(openCart = true): Promise<boolean> {
       store_id: storeId,
       product_id: productId,
       sku_id: skuId.value,
-      option_ids: optionIds.value,
+      // 显式拷贝，确保加料 id 随加购写入订单
+      option_ids: [...optionIds.value],
       quantity: qty.value,
+      ...(serviceMode != null ? { service_mode: serviceMode } : {}),
     },
     openCart,
   )
@@ -190,7 +249,7 @@ async function buyNow() {
                 :key="item.option_id"
                 class="ps-chip"
                 :class="{ 'is-on': optionIds.includes(item.option_id) }"
-                @click="toggleOption(item.option_id)"
+                @click="toggleOption(group, item.option_id)"
               >
                 {{ item.option_name }}
               </view>

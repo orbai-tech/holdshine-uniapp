@@ -13,6 +13,20 @@ npm run mock
 
 默认监听 `http://127.0.0.1:3780`。
 
+若报 `EADDRINUSE`（端口已被占用），在 PowerShell 中结束占用进程后再启动：
+
+```powershell
+netstat -ano | findstr :3780
+taskkill /PID <上面 LISTENING 对应的 PID> /F
+```
+
+或一条命令直接结束：
+
+```powershell
+Get-NetTCPConnection -LocalPort 3780 -State Listen |
+  ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+```
+
 首次使用请复制环境文件：
 
 ```bash

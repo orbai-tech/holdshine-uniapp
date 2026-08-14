@@ -1,0 +1,18 @@
+{
+  "source_docs": "http://192.168.10.186:8001/docs",
+  "source_openapi": "http://192.168.10.186:8001/openapi.json",
+  "title": "咖啡点单系统 API",
+  "version": "1.0.0",
+  "openapi": "3.1.0",
+  "paths": 166,
+  "sha256": "8a02dc16cca1bad744ef7b70cbb5b242014a724c934ad94f1ada458ffcd8eddc",
+  "content_length": 653766,
+  "fetched_at": "2026-08-13 10:53:57 +0800",
+  "local_files": [
+    "openapi.json",
+    "API.md",
+    "swagger-ui.html",
+    "redoc.html",
+    "SOURCE.json"
+  ]
+}

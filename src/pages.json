@@ -27,6 +27,14 @@
     {
       "path": "pages/stores/index",
       "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
+    },
+    {
+      "path": "pages/address/edit",
+      "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
+    },
+    {
+      "path": "pages/checkout/index",
+      "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
     }
   ],
   "globalStyle": {
