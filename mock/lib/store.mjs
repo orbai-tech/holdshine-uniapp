@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { userNeedsReconsent } from './legal.mjs'
 
 const users = new Map()
 const sessions = new Map()
@@ -17,6 +18,24 @@ export function upsertUser({ openid, nickname, memberNo }) {
     nickname: name,
     memberNo: memberNo || existing?.memberNo || '8800 1266',
     avatarInitial: avatarInitial(name),
+    mobile: existing?.mobile ?? null,
+    avatar_path: existing?.avatar_path ?? null,
+    privacy_policy_version: existing?.privacy_policy_version ?? '',
+    user_handbook_version: existing?.user_handbook_version ?? '',
+  }
+  users.set(openid, next)
+  return next
+}
+
+export function patchUser(openid, patch) {
+  const existing = users.get(openid)
+  if (!existing) return null
+  const nickname = patch.nickname != null ? String(patch.nickname) : existing.nickname
+  const next = {
+    ...existing,
+    ...patch,
+    nickname,
+    avatarInitial: avatarInitial(nickname),
   }
   users.set(openid, next)
   return next
@@ -28,13 +47,14 @@ export function toMpUserinfo(user) {
     user_type: 'customer',
     wechat_openid: user.openid,
     unionid: null,
-    mobile: null,
+    mobile: user.mobile ?? null,
     nickname: user.nickname,
-    avatar_path: null,
+    avatar_path: user.avatar_path ?? null,
     status: 1,
     member_no: user.memberNo,
     member_level_id: 1,
     last_login_at: null,
+    need_reconsent: userNeedsReconsent(user),
   }
 }
 

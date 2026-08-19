@@ -1,6 +1,12 @@
 /** 行规格文案：sku_name · option_name… */
 
-type SpecOption = { option_id?: number; option_name?: string | null; name?: string | null }
+type SpecOption = {
+  option_id?: number | string
+  group_name?: string | null
+  option_name?: string | null
+  name?: string | null
+  price_delta?: string | null
+}
 
 export function formatItemSpec(input: {
   sku_name?: string | null

@@ -38,6 +38,11 @@ export interface CartUpdateQtyReq {
   quantity: number
 }
 
+export interface CartClearReq {
+  store_id: number
+  service_mode?: number
+}
+
 export interface CartItemRes {
   item_id: number
   product_id: number
@@ -64,4 +69,11 @@ export interface CartRes {
   option_amount: string
   payable_amount: string
   items?: CartItemRes[]
+}
+
+/** 文档 DTO：GET /api/mp/customer/cart/overview */
+export interface CartOverviewRes {
+  dine_in: CartRes[]
+  takeaway: CartRes[]
+  mall: CartRes[]
 }

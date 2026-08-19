@@ -1,39 +1,52 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { onHide, onShow, onUnload } from '@dcloudio/uni-app'
+import { onHide, onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import SoorakChrome from '@/components/soorak-chrome/soorak-chrome.vue'
 import SoorakButton from '@/components/soorak-button/soorak-button.vue'
 import {
   addressResToDelivery,
   createAddress,
   deliveryToUpsert,
-  listAddresses,
+  getAddress,
+  parseAddressRegion,
   toAddressId,
   updateAddress,
 } from '@/common/apis/addressApi'
 import type { AddressGender, AddressTag, DeliveryAddress } from '@/common/types/fulfillment'
 import { useSessionStore } from '@/stores/session'
 import { toErrorMessage } from '@/utils/errorMessage'
+import { chooseMapLocation } from '@/utils/geo'
 
 const TAGS: AddressTag[] = ['家', '公司', '学校', '其他']
 
 const session = useSessionStore()
 
+const routeId = ref<string | null>(null)
 const addressId = ref<string | null>(null)
 const name = ref('')
 const gender = ref<AddressGender>('先生')
 const phone = ref('')
 const region = ref('')
-const regionValue = ref<string[]>([])
 const door = ref('')
 const tag = ref<AddressTag>('家')
 const latitude = ref<number | null>(null)
 const longitude = ref<number | null>(null)
 const saving = ref(false)
+const loading = ref(false)
+const picking = ref(false)
+/** chooseLocation 返回会触发 onShow，避免把刚选的点冲掉 */
+const skipShowReload = ref(false)
 
-function parseRegionValue(text: string): string[] {
-  const parts = text.trim().split(/\s+/).filter(Boolean)
-  return parts.length >= 2 && parts.length <= 3 ? parts : []
+function resetForm() {
+  addressId.value = null
+  name.value = ''
+  gender.value = '先生'
+  phone.value = ''
+  region.value = ''
+  door.value = ''
+  tag.value = '家'
+  latitude.value = null
+  longitude.value = null
 }
 
 function applyForm(existing: DeliveryAddress) {
@@ -42,35 +55,56 @@ function applyForm(existing: DeliveryAddress) {
   gender.value = existing.gender
   phone.value = existing.phone
   region.value = existing.region
-  regionValue.value = parseRegionValue(existing.region)
   door.value = existing.door
   tag.value = existing.tag
   latitude.value = existing.latitude
   longitude.value = existing.longitude
 }
 
-async function hydrateFromApi() {
-  if (!session.loggedIn) return
+async function loadById(id: string) {
+  if (loading.value) return
+  loading.value = true
   try {
-    const data = await listAddresses()
-    const list = data?.list ?? []
-    if (!list.length) return
-    const preferred = list.find((row) => row.is_default === 1) ?? list[0]
-    applyForm(addressResToDelivery(preferred, gender.value || '先生'))
+    const res = await getAddress(toAddressId(id))
+    const prevGender =
+      session.deliveryAddress?.address_id === id
+        ? session.deliveryAddress.gender
+        : '先生'
+    applyForm(addressResToDelivery(res, prevGender))
   } catch (error) {
-    console.warn('[元气善筑] 地址列表回填失败', error)
+    console.error('[元气善筑] 地址详情加载失败', error)
+    const message = toErrorMessage(error, '加载失败')
+    if (message !== 'UNAUTHORIZED') {
+      uni.showToast({ title: message.slice(0, 40), icon: 'none' })
+    }
+  } finally {
+    loading.value = false
   }
 }
+
+onLoad((options) => {
+  const raw = typeof options?.id === 'string' ? options.id.trim() : ''
+  routeId.value = raw || null
+})
 
 onShow(() => {
   session.hideNativeTabBar()
   session.setSuppressTabBar(true)
-  const existing = session.deliveryAddress
-  if (existing) applyForm(existing)
+  if (skipShowReload.value) {
+    skipShowReload.value = false
+    return
+  }
   void (async () => {
     const ok = await session.ensureLogin()
-    if (!ok) return
-    await hydrateFromApi()
+    if (!ok) {
+      uni.navigateBack({ fail() {} })
+      return
+    }
+    if (!routeId.value) {
+      resetForm()
+      return
+    }
+    await loadById(routeId.value)
   })()
 })
 
@@ -90,10 +124,36 @@ function setTag(next: AddressTag) {
   tag.value = next
 }
 
-function onRegionChange(e: { detail: { value: string[] } }) {
-  const next = e.detail.value ?? []
-  regionValue.value = next
-  region.value = next.filter(Boolean).join(' ')
+/** getLocation → chooseLocation；编辑时优先用已有坐标作地图中心。 */
+async function onPickLocation() {
+  if (picking.value) return
+  const loggedIn = await session.ensureLogin()
+  if (!loggedIn) return
+
+  picking.value = true
+  skipShowReload.value = true
+  try {
+    const center =
+      latitude.value != null && longitude.value != null
+        ? { latitude: latitude.value, longitude: longitude.value }
+        : null
+    const chosen = await chooseMapLocation(center)
+    if (!chosen) return
+    // 展示顺序：省市区 → POI；省市区从详细地址解析
+    const raw = chosen.address || chosen.name
+    const parsed = parseAddressRegion(raw)
+    const poi = (chosen.name || '').trim()
+    region.value = [parsed.province, parsed.city, parsed.district, poi]
+      .filter(Boolean)
+      .join(' ') || raw
+    latitude.value = chosen.latitude
+    longitude.value = chosen.longitude
+    if (!parsed.district) {
+      uni.showToast({ title: '未能识别区县，请重选位置', icon: 'none' })
+    }
+  } finally {
+    picking.value = false
+  }
 }
 
 async function saveAndUse() {
@@ -110,8 +170,13 @@ async function saveAndUse() {
     uni.showToast({ title: '请填写正确手机号', icon: 'none' })
     return
   }
-  if (!nextRegion) {
+  if (!nextRegion || latitude.value == null || longitude.value == null) {
     uni.showToast({ title: '请选择所在地址', icon: 'none' })
+    return
+  }
+  const parsed = parseAddressRegion(nextRegion)
+  if (!parsed.province || !parsed.city || !parsed.district) {
+    uni.showToast({ title: '请重新选择所在地址', icon: 'none' })
     return
   }
   if (!nextDoor) {
@@ -138,16 +203,61 @@ async function saveAndUse() {
 
   saving.value = true
   try {
-    const res = addressId.value
-      ? await updateAddress(toAddressId(addressId.value), payload)
-      : await createAddress(payload)
+    let res
+    if (addressId.value) {
+      try {
+        res = await updateAddress(toAddressId(addressId.value), payload)
+      } catch (error) {
+        const message = toErrorMessage(error, '保存失败')
+        if (!message.includes('地址不存在')) throw error
+        addressId.value = null
+        res = await createAddress(payload)
+      }
+    } else {
+      res = await createAddress(payload)
+    }
     const next = addressResToDelivery(res, gender.value)
     session.saveDeliveryAddress(next)
     session.setFulfillmentMode('delivery')
+
+    const pages = getCurrentPages()
+    const prev = pages[pages.length - 2] as { route?: string } | undefined
+    const before = pages[pages.length - 3] as { route?: string } | undefined
+    const route = prev?.route ?? ''
+    const beforeRoute = before?.route ?? ''
+
+    if (
+      route === 'pages/menu/index' ||
+      route === 'pages/checkout/index' ||
+      route === 'pages/stores/index'
+    ) {
+      uni.navigateBack({ fail() {} })
+      return
+    }
+
+    if (route === 'pages/address/index') {
+      if (
+        beforeRoute === 'pages/menu/index' ||
+        beforeRoute === 'pages/checkout/index' ||
+        beforeRoute === 'pages/stores/index'
+      ) {
+        uni.navigateBack({ delta: 2, fail() {} })
+        return
+      }
+      // 外卖入口：地址簿里保存并使用 → 进入按收货坐标排序的配送门店列表
+      uni.redirectTo({
+        url: '/pages/stores/index?mode=delivery',
+        fail() {
+          session.openStorePicker('delivery')
+        },
+      })
+      return
+    }
+
     uni.redirectTo({
       url: '/pages/stores/index?mode=delivery',
       fail() {
-        uni.navigateTo({ url: '/pages/stores/index?mode=delivery', fail() {} })
+        session.openStorePicker('delivery')
       },
     })
   } catch (error) {
@@ -163,93 +273,97 @@ async function saveAndUse() {
 </script>
 
 <template>
-  <SoorakChrome title="新增地址" show-back>
+  <SoorakChrome :title="routeId ? '编辑地址' : '新增地址'" show-back>
     <view class="page-address page-pad">
-      <view class="addr-card">
-        <view class="addr-row">
-          <text class="addr-row__label">收货人</text>
-          <view class="addr-row__main">
-            <view class="addr-row__line">
-              <input
-                v-model="name"
-                class="addr-input"
-                type="text"
-                placeholder="姓名"
-                placeholder-class="addr-ph"
-              />
-            </view>
-            <view class="addr-gender">
-              <view
-                class="addr-gender__item"
-                :class="{ 'is-on': gender === '先生' }"
-                @click="setGender('先生')"
-              >
-                先生
+      <view v-if="loading" class="addr-loading">
+        <text class="t-caption">加载中</text>
+      </view>
+
+      <template v-else>
+        <view class="addr-card">
+          <view class="addr-row">
+            <text class="addr-row__label">收货人</text>
+            <view class="addr-row__main">
+              <view class="addr-row__line">
+                <input
+                  v-model="name"
+                  class="addr-input"
+                  type="text"
+                  placeholder="姓名"
+                  placeholder-class="addr-ph"
+                />
               </view>
-              <view
-                class="addr-gender__item"
-                :class="{ 'is-on': gender === '女士' }"
-                @click="setGender('女士')"
-              >
-                女士
+              <view class="addr-gender">
+                <view
+                  class="addr-gender__item"
+                  :class="{ 'is-on': gender === '先生' }"
+                  @click="setGender('先生')"
+                >
+                  先生
+                </view>
+                <view
+                  class="addr-gender__item"
+                  :class="{ 'is-on': gender === '女士' }"
+                  @click="setGender('女士')"
+                >
+                  女士
+                </view>
               </view>
             </view>
           </view>
-        </view>
 
-        <view class="addr-row">
-          <text class="addr-row__label">手机号</text>
-          <input
-            v-model="phone"
-            class="addr-input"
-            type="number"
-            maxlength="11"
-            placeholder="手机号码"
-            placeholder-class="addr-ph"
-          />
-        </view>
+          <view class="addr-row">
+            <text class="addr-row__label">手机号</text>
+            <input
+              v-model="phone"
+              class="addr-input"
+              type="number"
+              maxlength="11"
+              placeholder="手机号码"
+              placeholder-class="addr-ph"
+            />
+          </view>
 
-        <view class="addr-row">
-          <text class="addr-row__label">地址</text>
-          <picker mode="region" class="addr-region-picker" :value="regionValue" @change="onRegionChange">
+          <view class="addr-row" @click="onPickLocation">
+            <text class="addr-row__label">地址</text>
             <view class="addr-region">
               <text :class="region ? 'addr-region__text' : 'addr-region__ph'">
-                {{ region || '请选择所在地址' }}
+                {{ picking ? '定位中…' : region || '请选择所在地址' }}
               </text>
             </view>
-          </picker>
-        </view>
+          </view>
 
-        <view class="addr-row">
-          <text class="addr-row__label">门牌号</text>
-          <input
-            v-model="door"
-            class="addr-input"
-            type="text"
-            placeholder="例：5号楼203室"
-            placeholder-class="addr-ph"
-          />
-        </view>
+          <view class="addr-row">
+            <text class="addr-row__label">门牌号</text>
+            <input
+              v-model="door"
+              class="addr-input"
+              type="text"
+              placeholder="例：5号楼203室"
+              placeholder-class="addr-ph"
+            />
+          </view>
 
-        <view class="addr-row addr-row--tags">
-          <text class="addr-row__label">标签</text>
-          <view class="addr-tags">
-            <view
-              v-for="item in TAGS"
-              :key="item"
-              class="addr-tag"
-              :class="{ 'is-on': tag === item }"
-              @click="setTag(item)"
-            >
-              {{ item }}
+          <view class="addr-row addr-row--tags">
+            <text class="addr-row__label">标签</text>
+            <view class="addr-tags">
+              <view
+                v-for="item in TAGS"
+                :key="item"
+                class="addr-tag"
+                :class="{ 'is-on': tag === item }"
+                @click="setTag(item)"
+              >
+                {{ item }}
+              </view>
             </view>
           </view>
         </view>
-      </view>
 
-      <view class="addr-cta">
-        <SoorakButton block @click="saveAndUse">{{ saving ? '保存中…' : '保存并使用' }}</SoorakButton>
-      </view>
+        <view class="addr-cta">
+          <SoorakButton block @click="saveAndUse">{{ saving ? '保存中…' : '保存并使用' }}</SoorakButton>
+        </view>
+      </template>
     </view>
   </SoorakChrome>
 </template>
@@ -257,6 +371,13 @@ async function saveAndUse() {
 <style lang="scss" scoped>
 .page-address {
   padding-bottom: 48rpx;
+}
+
+.addr-loading {
+  padding: 80rpx 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .addr-card {
@@ -312,12 +433,9 @@ async function saveAndUse() {
   color: $mp-text;
 }
 
-.addr-region-picker {
+.addr-region {
   flex: 1;
   min-width: 0;
-}
-
-.addr-region {
   display: flex;
   align-items: center;
   min-height: 48rpx;

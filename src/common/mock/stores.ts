@@ -1,6 +1,6 @@
 import type { StoreRes } from '@/common/types/store'
 
-/** 本地联调占位；正式列表走 GET /api/mp/stores。 */
+/** 本地联调占位；正式列表走 GET /api/mp/customer/stores。 */
 export const mockStores: StoreRes[] = [
   {
     store_id: '1',

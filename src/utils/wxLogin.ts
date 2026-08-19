@@ -1,8 +1,8 @@
-import type { WxLoginPayload } from '@/common/types/auth'
+import type { WxLoginCodePayload, WxLoginPlatform } from '@/common/types/auth'
 import { toErrorMessage } from '@/utils/errorMessage'
 
-function currentPlatform(): WxLoginPayload['platform'] {
-  let platform: WxLoginPayload['platform'] = 'devtools'
+function currentPlatform(): WxLoginPlatform {
+  let platform: WxLoginPlatform = 'devtools'
   // #ifdef MP-WEIXIN
   platform = 'mp-weixin'
   // #endif
@@ -33,7 +33,7 @@ function requestWxCode(): Promise<string> {
  * 微信小程序走 uni.login 换临时 code；H5 使用开发码。
  * 不调用已废弃的 getSystemInfoSync，避免新基础库直接抛错导致无请求。
  */
-export async function getWxLoginCode(): Promise<WxLoginPayload> {
+export async function getWxLoginCode(): Promise<WxLoginCodePayload> {
   const platform = currentPlatform()
   if (platform !== 'mp-weixin') {
     return {

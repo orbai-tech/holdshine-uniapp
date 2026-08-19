@@ -24,15 +24,38 @@ function requestWxPayment(prepay: PrepayRes): Promise<void> {
   })
 }
 
+/** mock / 开发态：可「暂不支付」留下待支付单，便于取消验收 */
+function confirmMockPay(): Promise<boolean> {
+  return new Promise((resolve) => {
+    uni.showModal({
+      title: '模拟支付',
+      content: '确认支付？点「暂不支付」可留下待支付订单（可取消）。',
+      confirmText: '支付',
+      cancelText: '暂不支付',
+      success: (res) => resolve(Boolean(res.confirm)),
+      fail: () => resolve(false),
+    })
+  })
+}
+
+export class PayCancelledError extends Error {
+  constructor() {
+    super('PAY_CANCELLED')
+    this.name = 'PayCancelledError'
+  }
+}
+
 /** H5/devtools：mock-paid；mp-weixin：真参走 requestPayment，缺参或 mock 标记走 mock-paid。 */
-export async function settlePayment(orderId: number, prepay: PrepayRes): Promise<void> {
+export async function settlePayment(orderId: number | string, prepay: PrepayRes): Promise<void> {
   // #ifndef MP-WEIXIN
+  if (!(await confirmMockPay())) throw new PayCancelledError()
   await mockPaid(orderId)
   return
   // #endif
 
   // #ifdef MP-WEIXIN
   if (prepay.mock || !hasPayParams(prepay)) {
+    if (!(await confirmMockPay())) throw new PayCancelledError()
     await mockPaid(orderId)
     return
   }
@@ -40,6 +63,8 @@ export async function settlePayment(orderId: number, prepay: PrepayRes): Promise
     await requestWxPayment(prepay)
   } catch (error) {
     if (import.meta.env.PROD) throw error
+    // 开发态真参失败：仍给机会 mock 付或留下待支付
+    if (!(await confirmMockPay())) throw new PayCancelledError()
     await mockPaid(orderId)
   }
   // #endif

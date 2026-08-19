@@ -7,9 +7,54 @@ import { parseAmount } from '@/utils/money'
 export const FALLBACK_SIZE_UP = 3
 export const FALLBACK_EXTRA_EACH = 3
 
+/** 饮品 / 商城礼品：对应 summary 的 coffee_discount_rate / mall_discount_rate */
+export type MemberGoodsKind = 'coffee' | 'mall'
+
 /** 金额分位对齐，避免浮点抖动 */
 export function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
+/** 奶茶会员折后：四舍五入保留两位小数 */
+export function roundCoffeeMoney(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
+/**
+ * 解析会员折扣率 → 实付倍率。
+ * 支持 `0.90`（付 90%）与 `90`（九折）两种写法；无效则视为不打折。
+ */
+export function parseMemberRate(rate: string | number | null | undefined): number {
+  if (rate == null || rate === '') return 1
+  const n = typeof rate === 'number' ? rate : Number(rate)
+  if (!Number.isFinite(n) || n <= 0) return 1
+  if (n <= 1) return n
+  if (n <= 100) return n / 100
+  return 1
+}
+
+/** 商品原价 → 会员折（包装/运费不走此函数） */
+export function applyMemberDiscount(
+  amount: number,
+  rate: string | number | null | undefined,
+  kind: MemberGoodsKind,
+): number {
+  const base = Math.max(0, amount)
+  if (base <= 0) return 0
+  const mult = parseMemberRate(rate)
+  if (mult >= 1) return roundMoney(base)
+  const discounted = base * mult
+  if (kind === 'coffee') return roundCoffeeMoney(discounted)
+  return roundMoney(discounted)
+}
+
+export function memberSaveAmount(original: number, afterMember: number): number {
+  return roundMoney(Math.max(0, original - afterMember))
+}
+
+export function formatMemberGoodsMoney(value: number, kind: MemberGoodsKind): string {
+  if (kind === 'coffee') return roundCoffeeMoney(value).toFixed(2)
+  return roundMoney(value).toFixed(2)
 }
 
 export function calcLineUnit(
@@ -46,7 +91,7 @@ export interface CouponDiscountResult {
   discount: number
 }
 
-/** 满减试算；折扣率字段预留，暂按 threshold + discount_amount */
+/** 满减试算（基于会员折后商品小计）；折扣率字段预留 */
 export function calcCouponDiscount(subtotal: number, coupon: MyCouponRes): CouponDiscountResult {
   const threshold = parseAmount(coupon.template?.threshold_amount ?? coupon.threshold_amount)
   const reduce = parseAmount(
@@ -79,6 +124,24 @@ export function evaluateCouponForSubtotal(coupon: MyCouponRes, subtotal: number)
 
 export function evaluateCouponsForSubtotal(coupons: MyCouponRes[], subtotal: number): MyCouponRes[] {
   return coupons.map((coupon) => evaluateCouponForSubtotal(coupon, subtotal))
+}
+
+/** usable 接口的可用性标记覆盖本地试算结果，折扣仍由本地计算。 */
+export function mergeCouponUsableFlags(
+  localEvaluated: MyCouponRes[],
+  apiCoupons: MyCouponRes[],
+): MyCouponRes[] {
+  if (!apiCoupons.length) return localEvaluated
+  const apiById = new Map(apiCoupons.map((item) => [item.customer_coupon_id, item]))
+  return localEvaluated.map((item) => {
+    const api = apiById.get(item.customer_coupon_id)
+    if (!api) return item
+    return {
+      ...item,
+      usable: api.usable,
+      unusable_reason: api.unusable_reason ?? item.unusable_reason,
+    }
+  })
 }
 
 export function calcPayable(subtotal: number, discount: number): number {

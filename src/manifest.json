@@ -30,10 +30,11 @@
     "appid": "wxc7abc29ecddc62c5",
     "setting": { "urlCheck": false, "es6": false },
     "usingComponents": true,
-    "requiredPrivateInfos": ["getLocation"],
+    "__usePrivacyCheck__": false,
+    "requiredPrivateInfos": ["getLocation", "chooseLocation"],
     "permission": {
       "scope.userLocation": {
-        "desc": "用于自动选择距离你最近的门店"
+        "desc": "用于选择附近门店，以及在地图上选择收货地址"
       }
     }
   },

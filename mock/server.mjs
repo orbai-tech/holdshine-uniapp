@@ -4,8 +4,11 @@ import { fileURLToPath } from 'node:url'
 import { config } from './config.mjs'
 import {
   addCartItem,
+  cancelOrder,
+  clearCart,
   createOrderFromCart,
   getCart,
+  getCartOverview,
   getOrder,
   listOrders,
   mockPaid,
@@ -23,13 +26,37 @@ import {
 } from './lib/addresses.mjs'
 import {
   claimCoupon,
+  getMyCouponDetail,
   listAvailableCoupons,
   listMyCoupons,
+  listUsableCoupons,
   previewCheckout,
   redeemCoupon,
 } from './lib/coupons.mjs'
-import { buildMenu, stores } from './lib/fixtures.mjs'
-import { forgetSession, getUser, hasSession, rememberSession, toMpUserinfo } from './lib/store.mjs'
+import { buildMenu, getStoreDetail, stores } from './lib/fixtures.mjs'
+import { getMallCatalog, getMallProduct } from './lib/mall.mjs'
+import { listAvailableTables, occupyTable, resolveTable } from './lib/tables.mjs'
+import { getPointsAccount, listPointsLedger } from './lib/points.mjs'
+import {
+  applyMemberPaid,
+  getMemberBenefits,
+  getMemberLevels,
+  getMemberSummary,
+  listMemberSubscriptions,
+  subscribeMember,
+} from './lib/member.mjs'
+import {
+  getTakeawayDispatch,
+  listDeliveryChannels,
+  quoteDelivery,
+} from './lib/delivery.mjs'
+import {
+  bumpLegalVersion,
+  getLegalDocument,
+  listLegalDocuments,
+  currentLegalVersions,
+} from './lib/legal.mjs'
+import { forgetSession, getUser, hasSession, patchUser, rememberSession, toMpUserinfo } from './lib/store.mjs'
 import { issueToken, verifyToken } from './lib/token.mjs'
 import { exchangeCode } from './lib/wechat.mjs'
 
@@ -62,8 +89,19 @@ function readBody(req) {
         resolve({})
         return
       }
+      const raw = Buffer.concat(chunks).toString('utf8').trim()
+      if (!raw) {
+        resolve({})
+        return
+      }
       try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+        let parsed
+        if (raw.startsWith('{') || raw.startsWith('[')) {
+          parsed = JSON.parse(raw)
+        } else {
+          parsed = Object.fromEntries(new URLSearchParams(raw))
+        }
+        resolve(parsed)
       } catch (error) {
         reject(error)
       }
@@ -76,6 +114,19 @@ function bearer(req) {
   const header = req.headers.authorization || ''
   const matched = header.match(/^Bearer\s+(.+)$/i)
   return matched ? matched[1] : ''
+}
+
+function isAgreedFlag(value) {
+  if (value === true || value === 1 || value === '1') return true
+  if (typeof value === 'string' && value.trim().toLowerCase() === 'true') return true
+  return false
+}
+
+function pickBody(body, ...keys) {
+  for (const key of keys) {
+    if (body[key] != null && body[key] !== '') return body[key]
+  }
+  return undefined
 }
 
 function requireUser(req, res) {
@@ -160,6 +211,8 @@ function toMpStore(store, point) {
     district: store.district,
     address: store.address,
     business_hours: store.business_hours,
+    coffee_open_now: store.coffee_open_now !== false,
+    status_label: store.status_label || (store.coffee_open_now === false ? '休息中' : '营业中'),
     enable_dine_in: store.enable_dine_in,
     enable_takeaway: store.enable_takeaway,
     enable_mall: store.enable_mall,
@@ -185,26 +238,53 @@ async function handle(req, res) {
       wxAppId: config.wxAppId ? `${config.wxAppId.slice(0, 6)}…` : '',
       liveLogin: config.wxLiveLogin,
       routes: [
-        'POST /api/mp/auth/wx-login',
-        'GET /api/mp/auth/me',
-        'POST /api/mp/auth/logout',
-        'GET /api/mp/stores',
-        'GET /api/mp/stores/:id/menu',
-        'GET /api/mp/cart',
-        'POST /api/mp/cart/quote',
-        'POST /api/mp/cart/items',
-        'GET /api/mp/coupons/mine',
-        'GET /api/mp/coupons/available',
-        'POST /api/mp/coupons/claim',
-        'POST /api/mp/coupons/redeem',
-        'POST /api/mp/checkout/preview',
-        'GET /api/mp/addresses',
-        'POST /api/mp/addresses',
-        'GET|PUT|DELETE /api/mp/addresses/:id',
-        'GET /api/mp/orders',
-        'POST /api/mp/orders',
-        'POST /api/mp/payments/prepay',
-        'POST /api/mp/payments/mock-paid',
+        'POST /api/mp/customer/auth/wx-login',
+        'GET /api/mp/customer/auth/me',
+        'POST /api/mp/customer/auth/logout',
+        'PUT /api/mp/customer/auth/profile',
+        'POST /api/mp/customer/auth/bind-phone',
+        'POST /api/mp/customer/auth/avatar',
+        'GET /api/mp/customer/stores',
+        'GET /api/mp/customer/stores/:id',
+        'GET /api/mp/customer/stores/:id/menu',
+        'GET /api/mp/customer/cart',
+        'GET /api/mp/customer/cart/overview',
+        'POST /api/mp/customer/cart/quote',
+        'POST /api/mp/customer/cart/items',
+        'POST /api/mp/customer/cart/clear',
+        'GET /api/mp/customer/coupons/mine',
+        'GET /api/mp/customer/coupons/mine/:id',
+        'GET /api/mp/customer/coupons/available',
+        'GET /api/mp/customer/coupons/usable',
+        'POST /api/mp/customer/coupons/claim',
+        'POST /api/mp/customer/coupons/redeem',
+        'POST /api/mp/customer/checkout/preview',
+        'GET /api/mp/customer/addresses',
+        'POST /api/mp/customer/addresses',
+        'GET|PUT|DELETE /api/mp/customer/addresses/:id',
+        'GET /api/mp/customer/orders',
+        'POST /api/mp/customer/orders',
+        'GET /api/mp/customer/orders/{id}',
+        'POST /api/mp/customer/orders/{id}/cancel',
+        'POST /api/mp/customer/payments/prepay',
+        'POST /api/mp/customer/payments/mock-paid',
+        'GET /api/mp/customer/mall',
+        'GET /api/mp/customer/mall/products/:id',
+        'GET /api/mp/customer/tables/resolve',
+        'POST /api/mp/customer/tables/:id/occupy',
+        'GET /api/mp/customer/stores/:id/tables/available',
+        'GET /api/mp/customer/points/account',
+        'GET /api/mp/customer/points/ledger',
+        'GET /api/mp/customer/member/summary',
+        'GET /api/mp/customer/member/levels',
+        'GET /api/mp/customer/member/benefits',
+        'POST /api/mp/customer/member/subscribe',
+        'GET /api/mp/customer/member/subscriptions',
+        'GET /api/mp/customer/delivery/channels',
+        'POST /api/mp/customer/delivery/quote',
+        'GET /api/mp/customer/delivery/orders/:id',
+        'GET /api/mp/customer/legal/documents',
+        'GET /api/mp/customer/legal/documents/:doc_type',
       ],
     })
     return
@@ -238,26 +318,136 @@ async function handle(req, res) {
     return
   }
 
-  if (req.method === 'POST' && path === '/api/mp/auth/wx-login') {
+  if (req.method === 'POST' && path === '/api/mp/customer/auth/wx-login') {
     const body = await readBody(req)
+    const privacyFlag = pickBody(body, 'agree_privacy_policy', 'agreePrivacyPolicy')
+    const handbookFlag = pickBody(body, 'agree_user_handbook', 'agreeUserHandbook')
+    const agreedPrivacy = isAgreedFlag(privacyFlag)
+    const agreedHandbook = isAgreedFlag(handbookFlag)
+    const privacyVer = String(pickBody(body, 'privacy_policy_version', 'privacyPolicyVersion') || '').trim()
+    const handbookVer = String(pickBody(body, 'user_handbook_version', 'userHandbookVersion') || '').trim()
+    if (!agreedPrivacy || !agreedHandbook) {
+      json(res, 200, { code: 41000, message: '须同意隐私协议与用户手册', data: null })
+      return
+    }
+    if (!privacyVer || !handbookVer) {
+      json(res, 200, { code: 41000, message: '缺少协议版本', data: null })
+      return
+    }
+    const current = currentLegalVersions()
+    if (privacyVer !== current.privacy || handbookVer !== current.handbook) {
+      json(res, 200, { code: 41000, message: '协议版本已更新，请重新阅读', data: null })
+      return
+    }
     const { user } = await exchangeCode(body.code, body.platform)
-    const issued = issueToken({ sub: user.openid, nickname: user.nickname })
-    rememberSession(issued.token, user.openid)
-    ok(res, { token: issued.token, userinfo: toMpUserinfo(user) })
+    const wxPhone = body.wx_phone_code != null ? String(body.wx_phone_code).trim() : ''
+    const mobileRaw = body.mobile != null ? String(body.mobile).trim() : ''
+    const patch = {
+      privacy_policy_version: privacyVer,
+      user_handbook_version: handbookVer,
+    }
+    if (wxPhone || mobileRaw) {
+      patch.mobile = mobileRaw || '13800138000'
+    }
+    const nextUser = patchUser(user.openid, patch) || user
+    const issued = issueToken({ sub: nextUser.openid, nickname: nextUser.nickname })
+    rememberSession(issued.token, nextUser.openid)
+    ok(res, { token: issued.token, userinfo: toMpUserinfo(nextUser) })
     return
   }
 
-  if (req.method === 'GET' && path === '/api/mp/auth/me') {
+  if (req.method === 'GET' && path === '/api/mp/customer/legal/documents') {
+    ok(res, { list: listLegalDocuments() })
+    return
+  }
+
+  /** mock 专用：升版隐私协议+用户手册，便于小程序验收 need_reconsent（勿对真后端调用） */
+  if (req.method === 'POST' && path === '/api/mp/customer/legal/__bump') {
+    bumpLegalVersion(2)
+    bumpLegalVersion(3)
+    ok(res, { list: listLegalDocuments() })
+    return
+  }
+
+  const legalDocMatch = path.match(/^\/api\/mp\/customer\/legal\/documents\/([^/]+)$/)
+  if (req.method === 'GET' && legalDocMatch) {
+    const doc = getLegalDocument(legalDocMatch[1])
+    if (!doc) {
+      json(res, 200, { code: 40400, message: '文档不存在', data: null })
+      return
+    }
+    ok(res, doc)
+    return
+  }
+
+  if (req.method === 'GET' && path === '/api/mp/customer/auth/me') {
     const session = requireMpSession(req, res)
     if (!session) return
     ok(res, toMpUserinfo(session.user))
     return
   }
 
-  if (req.method === 'POST' && path === '/api/mp/auth/logout') {
+  if (req.method === 'POST' && path === '/api/mp/customer/auth/logout') {
     const token = bearer(req)
     if (token) forgetSession(token)
     ok(res, null)
+    return
+  }
+
+  if (req.method === 'PUT' && path === '/api/mp/customer/auth/profile') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    try {
+      const body = await readBody(req)
+      const patch = {}
+      if (body.nickname != null) patch.nickname = String(body.nickname).trim() || session.user.nickname
+      if (body.avatar_path != null) patch.avatar_path = body.avatar_path || null
+      const updated = patchUser(session.user.openid, patch)
+      ok(res, toMpUserinfo(updated))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
+    return
+  }
+
+  if (req.method === 'POST' && path === '/api/mp/customer/auth/bind-phone') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    try {
+      const body = await readBody(req)
+      let mobile = body.mobile != null ? String(body.mobile).trim() : ''
+      const wxCode = body.wx_phone_code != null ? String(body.wx_phone_code).trim() : ''
+      if (wxCode && !mobile) {
+        mobile = '13800138000'
+      }
+      if (!mobile) {
+        json(res, 200, { code: 40000, message: '缺少 mobile', data: null })
+        return
+      }
+      if (!/^1\d{10}$/.test(mobile)) {
+        json(res, 200, { code: 40000, message: '手机号格式不正确', data: null })
+        return
+      }
+      const updated = patchUser(session.user.openid, { mobile })
+      ok(res, toMpUserinfo(updated))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
+    return
+  }
+
+  if (req.method === 'POST' && path === '/api/mp/customer/auth/avatar') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    // multipart：不解析文件内容，写入固定封面路径
+    await new Promise((resolve) => {
+      req.on('data', () => {})
+      req.on('end', resolve)
+      req.on('error', resolve)
+    })
+    const avatar_path = '/static/images/products/latte.jpg'
+    const updated = patchUser(session.user.openid, { avatar_path })
+    ok(res, { avatar_path, userinfo: toMpUserinfo(updated) })
     return
   }
 
@@ -281,7 +471,7 @@ async function handle(req, res) {
     return
   }
 
-  if (req.method === 'GET' && path === '/api/mp/stores') {
+  if (req.method === 'GET' && path === '/api/mp/customer/stores') {
     const keyword = (url.searchParams.get('keyword') || '').trim()
     const { page, pageSize } = pageQuery(url)
     const latRaw = url.searchParams.get('latitude')
@@ -311,7 +501,7 @@ async function handle(req, res) {
     return
   }
 
-  const menuMatch = path.match(/^\/api\/mp\/stores\/(\d+)\/menu$/)
+  const menuMatch = path.match(/^\/api\/mp\/customer\/stores\/(\d+)\/menu$/)
   if (req.method === 'GET' && menuMatch) {
     const menu = buildMenu(menuMatch[1])
     if (!menu) {
@@ -322,7 +512,92 @@ async function handle(req, res) {
     return
   }
 
-  if (req.method === 'GET' && path === '/api/mp/cart') {
+  const storeDetailMatch = path.match(/^\/api\/mp\/customer\/stores\/(\d+)$/)
+  if (req.method === 'GET' && storeDetailMatch) {
+    const detail = getStoreDetail(storeDetailMatch[1])
+    if (!detail) {
+      json(res, 200, { code: 40000, message: '门店不存在', data: null })
+      return
+    }
+    ok(res, detail)
+    return
+  }
+
+  const availableTablesMatch = path.match(
+    /^\/api\/mp\/customer\/stores\/(\d+)\/tables\/available$/,
+  )
+  if (req.method === 'GET' && availableTablesMatch) {
+    try {
+      ok(res, listAvailableTables(availableTablesMatch[1]))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
+    return
+  }
+
+  if (req.method === 'GET' && path === '/api/mp/customer/points/account') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    ok(res, getPointsAccount(session.user.openid))
+    return
+  }
+
+  if (req.method === 'GET' && path === '/api/mp/customer/points/ledger') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    const page = Number(url.searchParams.get('page') || 1)
+    const pageSize = Number(url.searchParams.get('page_size') || 20)
+    ok(res, listPointsLedger(session.user.openid, { page, page_size: pageSize }))
+    return
+  }
+
+  if (req.method === 'GET' && path === '/api/mp/customer/member/summary') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    ok(res, getMemberSummary(session.user.openid))
+    return
+  }
+
+  if (req.method === 'GET' && path === '/api/mp/customer/member/levels') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    ok(res, getMemberLevels(session.user.openid))
+    return
+  }
+
+  if (req.method === 'GET' && path === '/api/mp/customer/member/benefits') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    ok(res, getMemberBenefits(session.user.openid))
+    return
+  }
+
+  if (req.method === 'GET' && path === '/api/mp/customer/member/subscriptions') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    ok(res, listMemberSubscriptions(session.user.openid))
+    return
+  }
+
+  if (req.method === 'POST' && path === '/api/mp/customer/member/subscribe') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    try {
+      ok(res, subscribeMember(session.user.openid, await readBody(req)))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
+    return
+  }
+
+  if (req.method === 'GET' && path === '/api/mp/customer/cart/overview') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    ok(res, getCartOverview(session.user.openid))
+    return
+  }
+
+  if (req.method === 'GET' && path === '/api/mp/customer/cart') {
     const session = requireMpSession(req, res)
     if (!session) return
     const storeId = Number(url.searchParams.get('store_id'))
@@ -330,11 +605,18 @@ async function handle(req, res) {
       json(res, 200, { code: 40000, message: '缺少 store_id', data: null })
       return
     }
-    ok(res, getCart(session.user.openid, storeId))
+    const serviceModeRaw = url.searchParams.get('service_mode')
+    const serviceMode =
+      serviceModeRaw == null || serviceModeRaw === '' ? 1 : Number(serviceModeRaw)
+    try {
+      ok(res, getCart(session.user.openid, storeId, serviceMode))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
     return
   }
 
-  if (req.method === 'POST' && path === '/api/mp/cart/quote') {
+  if (req.method === 'POST' && path === '/api/mp/customer/cart/quote') {
     try {
       ok(res, quoteLine(await readBody(req)))
     } catch (error) {
@@ -343,7 +625,7 @@ async function handle(req, res) {
     return
   }
 
-  if (req.method === 'POST' && path === '/api/mp/cart/items') {
+  if (req.method === 'POST' && path === '/api/mp/customer/cart/items') {
     const session = requireMpSession(req, res)
     if (!session) return
     try {
@@ -354,7 +636,7 @@ async function handle(req, res) {
     return
   }
 
-  const cartItemMatch = path.match(/^\/api\/mp\/cart\/items\/(\d+)$/)
+  const cartItemMatch = path.match(/^\/api\/mp\/customer\/cart\/items\/(\d+)$/)
   if (cartItemMatch && (req.method === 'PUT' || req.method === 'DELETE')) {
     const session = requireMpSession(req, res)
     if (!session) return
@@ -371,14 +653,115 @@ async function handle(req, res) {
     return
   }
 
-  if (req.method === 'GET' && path === '/api/mp/coupons/mine') {
+  if (req.method === 'POST' && path === '/api/mp/customer/cart/clear') {
     const session = requireMpSession(req, res)
     if (!session) return
-    ok(res, listMyCoupons())
+    try {
+      ok(res, clearCart(session.user.openid, await readBody(req)))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
     return
   }
 
-  if (req.method === 'GET' && path === '/api/mp/coupons/available') {
+  if (req.method === 'GET' && path === '/api/mp/customer/tables/resolve') {
+    try {
+      ok(res, resolveTable(url.searchParams.get('qr_token')))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
+    return
+  }
+
+  if (req.method === 'GET' && path === '/api/mp/customer/delivery/channels') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    ok(res, listDeliveryChannels())
+    return
+  }
+
+  if (req.method === 'POST' && path === '/api/mp/customer/delivery/quote') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    try {
+      ok(res, quoteDelivery(await readBody(req)))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
+    return
+  }
+
+  {
+    const deliveryOrderMatch = path.match(/^\/api\/mp\/customer\/delivery\/orders\/(\d+)$/)
+    if (req.method === 'GET' && deliveryOrderMatch) {
+      const session = requireMpSession(req, res)
+      if (!session) return
+      try {
+        ok(res, getTakeawayDispatch(deliveryOrderMatch[1]))
+      } catch (error) {
+        json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+      }
+      return
+    }
+  }
+
+  {
+    const occupyMatch = path.match(/^\/api\/mp\/customer\/tables\/(\d+)\/occupy$/)
+    if (req.method === 'POST' && occupyMatch) {
+      const session = requireMpSession(req, res)
+      if (!session) return
+      try {
+        ok(res, occupyTable(occupyMatch[1]))
+      } catch (error) {
+        json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+      }
+      return
+    }
+  }
+
+  if (req.method === 'GET' && path === '/api/mp/customer/mall') {
+    try {
+      ok(res, getMallCatalog(url.searchParams.get('store_id')))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
+    return
+  }
+
+  {
+    const mallProductMatch = path.match(/^\/api\/mp\/customer\/mall\/products\/(\d+)$/)
+    if (req.method === 'GET' && mallProductMatch) {
+      try {
+        ok(res, getMallProduct(mallProductMatch[1], url.searchParams.get('store_id')))
+      } catch (error) {
+        json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+      }
+      return
+    }
+  }
+
+  if (req.method === 'GET' && path === '/api/mp/customer/coupons/mine') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    ok(res, listMyCoupons(url.searchParams.get('coupon_status')))
+    return
+  }
+
+  {
+    const mineIdMatch = path.match(/^\/api\/mp\/customer\/coupons\/mine\/(\d+)$/)
+    if (req.method === 'GET' && mineIdMatch) {
+      const session = requireMpSession(req, res)
+      if (!session) return
+      try {
+        ok(res, getMyCouponDetail(mineIdMatch[1]))
+      } catch (error) {
+        json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+      }
+      return
+    }
+  }
+
+  if (req.method === 'GET' && path === '/api/mp/customer/coupons/available') {
     const session = requireMpSession(req, res)
     if (!session) return
     try {
@@ -389,7 +772,26 @@ async function handle(req, res) {
     return
   }
 
-  if (req.method === 'POST' && path === '/api/mp/coupons/claim') {
+  if (req.method === 'GET' && path === '/api/mp/customer/coupons/usable') {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    try {
+      ok(
+        res,
+        listUsableCoupons({
+          store_id: url.searchParams.get('store_id'),
+          goods_amount: url.searchParams.get('goods_amount'),
+          service_mode: url.searchParams.get('service_mode'),
+          member_summary: getMemberSummary(session.user.openid),
+        }),
+      )
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
+    return
+  }
+
+  if (req.method === 'POST' && path === '/api/mp/customer/coupons/claim') {
     const session = requireMpSession(req, res)
     if (!session) return
     try {
@@ -400,7 +802,7 @@ async function handle(req, res) {
     return
   }
 
-  if (req.method === 'POST' && path === '/api/mp/coupons/redeem') {
+  if (req.method === 'POST' && path === '/api/mp/customer/coupons/redeem') {
     const session = requireMpSession(req, res)
     if (!session) return
     try {
@@ -412,7 +814,7 @@ async function handle(req, res) {
     return
   }
 
-  if (req.method === 'POST' && path === '/api/mp/checkout/preview') {
+  if (req.method === 'POST' && path === '/api/mp/customer/checkout/preview') {
     const session = requireMpSession(req, res)
     if (!session) return
     try {
@@ -422,7 +824,9 @@ async function handle(req, res) {
         json(res, 200, { code: 40000, message: '缺少 store_id', data: null })
         return
       }
-      const cart = getCart(session.user.openid, storeId)
+      const serviceMode =
+        body.service_mode == null || body.service_mode === '' ? 1 : Number(body.service_mode)
+      const cart = getCart(session.user.openid, storeId, serviceMode)
       ok(res, previewCheckout(cart, body))
     } catch (error) {
       json(res, 200, { code: error.code || 40000, message: error.message, data: null })
@@ -430,14 +834,14 @@ async function handle(req, res) {
     return
   }
 
-  if (req.method === 'GET' && path === '/api/mp/addresses') {
+  if (req.method === 'GET' && path === '/api/mp/customer/addresses') {
     const session = requireMpSession(req, res)
     if (!session) return
     ok(res, listAddresses(session.user.openid))
     return
   }
 
-  if (req.method === 'POST' && path === '/api/mp/addresses') {
+  if (req.method === 'POST' && path === '/api/mp/customer/addresses') {
     const session = requireMpSession(req, res)
     if (!session) return
     try {
@@ -448,7 +852,7 @@ async function handle(req, res) {
     return
   }
 
-  const addressMatch = path.match(/^\/api\/mp\/addresses\/(\d+)$/)
+  const addressMatch = path.match(/^\/api\/mp\/customer\/addresses\/(\d+)$/)
   if (addressMatch && (req.method === 'GET' || req.method === 'PUT' || req.method === 'DELETE')) {
     const session = requireMpSession(req, res)
     if (!session) return
@@ -467,15 +871,21 @@ async function handle(req, res) {
     return
   }
 
-  if (req.method === 'GET' && path === '/api/mp/orders') {
+  if (req.method === 'GET' && path === '/api/mp/customer/orders') {
     const session = requireMpSession(req, res)
     if (!session) return
     const { page, pageSize } = pageQuery(url)
-    ok(res, listOrders(session.user.openid, page, pageSize))
+    ok(
+      res,
+      listOrders(session.user.openid, page, pageSize, {
+        status: url.searchParams.get('status'),
+        service_mode: url.searchParams.get('service_mode'),
+      }),
+    )
     return
   }
 
-  if (req.method === 'POST' && path === '/api/mp/orders') {
+  if (req.method === 'POST' && path === '/api/mp/customer/orders') {
     const session = requireMpSession(req, res)
     if (!session) return
     try {
@@ -486,7 +896,19 @@ async function handle(req, res) {
     return
   }
 
-  const orderMatch = path.match(/^\/api\/mp\/orders\/(\d+)$/)
+  const orderCancelMatch = path.match(/^\/api\/mp\/customer\/orders\/(\d+)\/cancel$/)
+  if (req.method === 'POST' && orderCancelMatch) {
+    const session = requireMpSession(req, res)
+    if (!session) return
+    try {
+      ok(res, cancelOrder(session.user.openid, orderCancelMatch[1]))
+    } catch (error) {
+      json(res, 200, { code: error.code || 40000, message: error.message, data: null })
+    }
+    return
+  }
+
+  const orderMatch = path.match(/^\/api\/mp\/customer\/orders\/(\d+)$/)
   if (req.method === 'GET' && orderMatch) {
     const session = requireMpSession(req, res)
     if (!session) return
@@ -498,7 +920,7 @@ async function handle(req, res) {
     return
   }
 
-  if (req.method === 'POST' && path === '/api/mp/payments/prepay') {
+  if (req.method === 'POST' && path === '/api/mp/customer/payments/prepay') {
     const session = requireMpSession(req, res)
     if (!session) return
     try {
@@ -510,12 +932,14 @@ async function handle(req, res) {
     return
   }
 
-  if (req.method === 'POST' && path === '/api/mp/payments/mock-paid') {
+  if (req.method === 'POST' && path === '/api/mp/customer/payments/mock-paid') {
     const session = requireMpSession(req, res)
     if (!session) return
     try {
       const body = await readBody(req)
-      ok(res, mockPaid(session.user.openid, body.order_id))
+      const result = mockPaid(session.user.openid, body.order_id)
+      applyMemberPaid(session.user.openid, body.order_id)
+      ok(res, result)
     } catch (error) {
       json(res, 200, { code: error.code || 40000, message: error.message, data: null })
     }
@@ -541,7 +965,7 @@ if (isDirectRun) {
   server.listen(config.port, '0.0.0.0', () => {
     console.log(`[mock] 元气善筑假后端已启动 http://127.0.0.1:${config.port}`)
     console.log(
-      '[mock] 已接入路径：/api/mp/auth/*  /api/mp/stores  /api/mp/stores/:id/menu  /api/mp/cart  /api/mp/coupons/*  /api/mp/addresses  /api/mp/orders  /api/mp/payments/*',
+      '[mock] 已接入路径：/api/mp/customer/auth/*  /api/mp/customer/stores  /api/mp/customer/stores/:id  /api/mp/customer/stores/:id/menu  /api/mp/customer/cart  /api/mp/customer/cart/overview  /api/mp/customer/points/*  /api/mp/customer/member/*  /api/mp/customer/coupons/*  /api/mp/customer/addresses  /api/mp/customer/orders  /api/mp/customer/payments/*  /api/mp/customer/mall*  /api/mp/customer/tables*  /api/mp/customer/delivery*',
     )
     if (!config.wxAppId || !config.wxSecret) {
       console.warn('[mock] 未配置 WX_APPID / WX_SECRET，仅提供模拟会话')

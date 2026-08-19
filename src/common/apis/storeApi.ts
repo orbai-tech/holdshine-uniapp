@@ -1,10 +1,10 @@
-import { http } from '@/plugin/request'
+import { http } from '@/plugins/request'
 import type { PageResult } from '@/common/types/api'
-import type { MpStoreListQuery, StoreRes } from '@/common/types/store'
+import type { MpStoreDetailRes, MpStoreListQuery, StoreRes } from '@/common/types/store'
 import { distanceKm, parseCoord, type GeoPoint } from '@/utils/geo'
 import { toStoreId } from '@/utils/storeId'
 
-/** 顾客端门店列表：GET /api/mp/stores（DEV-012 平替原 admin 列表）。 */
+/** 顾客端门店列表：GET /api/mp/customer/stores（DEV-012 平替原 admin 列表）。 */
 export function listMpStores(query: MpStoreListQuery = {}) {
   const data: {
     page: number
@@ -19,12 +19,17 @@ export function listMpStores(query: MpStoreListQuery = {}) {
   if (query.keyword) data.keyword = query.keyword
   if (query.latitude != null) data.latitude = query.latitude
   if (query.longitude != null) data.longitude = query.longitude
-  return http.get<PageResult<StoreRes>>('/api/mp/stores', data)
+  return http.get<PageResult<StoreRes>>('/api/mp/customer/stores', data)
+}
+
+/** 门店详情：GET /api/mp/customer/stores/{store_id} */
+export function getStoreDetail(storeId: number) {
+  return http.get<MpStoreDetailRes>(`/api/mp/customer/stores/${storeId}`, undefined, { showError: false })
 }
 
 /**
  * 按收货坐标推荐门店。
- * 走 GET /api/mp/stores?latitude&longitude（后端按直线距离排序）；仍过滤营业中。
+ * 走 GET /api/mp/customer/stores?latitude&longitude；客户端再按直线距离升序，保证列表排序稳定。
  */
 export async function listStoresByAddress(point: GeoPoint): Promise<StoreRes[]> {
   const page = await listMpStores({
@@ -33,7 +38,8 @@ export async function listStoresByAddress(point: GeoPoint): Promise<StoreRes[]> 
     latitude: point.latitude,
     longitude: point.longitude,
   })
-  return (page.list ?? []).filter((item) => item.status === 1)
+  const list = (page.list ?? []).filter((item) => item.status === 1)
+  return [...list].sort((a, b) => storeDistanceKm(a, point) - storeDistanceKm(b, point))
 }
 
 function storeDistanceKm(store: StoreRes, point: GeoPoint): number {
@@ -80,4 +86,23 @@ export function storeDistanceLabel(store: StoreRes, point: GeoPoint | null): str
 
 export function storeIdOf(store: StoreRes): number {
   return toStoreId(store.store_id)
+}
+
+type StoreOpenFields = {
+  coffee_open_now?: boolean
+  status_label?: string
+}
+
+/** 当前是否在营业时段；缺省按 true（契约 default）。 */
+export function storeIsOpenNow(store: StoreOpenFields | null | undefined): boolean {
+  if (!store) return false
+  return store.coffee_open_now !== false
+}
+
+/** 营业态展示文案；优先后端 status_label。 */
+export function storeStatusLabel(store: StoreOpenFields | null | undefined): string {
+  if (!store) return '休息中'
+  const label = store.status_label?.trim()
+  if (label) return label
+  return storeIsOpenNow(store) ? '营业中' : '休息中'
 }

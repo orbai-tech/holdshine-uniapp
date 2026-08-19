@@ -33,6 +33,9 @@ const etaText = computed(() => {
     if (!addr) return '外卖 · 待填地址'
     return `外卖 · ${addr.tag}`
   }
+  if (session.tableName || session.tableCode) {
+    return `堂食 · ${session.tableName || session.tableCode}`
+  }
   const minutes = 8
   return `堂食 · 约 ${minutes} 分钟`
 })
@@ -43,7 +46,11 @@ const contextSub = computed(() => {
     if (!addr) return '请完善收货地址'
     return `${addr.region} ${addr.door}`
   }
-  return catalog.brand?.store || '选择门店'
+  const store = catalog.brand?.store || '选择门店'
+  if (session.tableName || session.tableCode) {
+    return `${store} · ${session.tableName || session.tableCode}`
+  }
+  return store
 })
 
 onShow(() => {
@@ -80,7 +87,7 @@ function onModeTap(mode: FulfillmentMode) {
 
 function onContextTap() {
   if (session.fulfillmentMode === 'delivery') {
-    session.openAddressEditor()
+    session.openAddressBook()
     return
   }
   session.openStorePicker(session.fulfillmentMode)
@@ -88,7 +95,7 @@ function onContextTap() {
 </script>
 
 <template>
-  <SoorakChrome title="点单">
+  <SoorakChrome title="点单" show-back>
     <view v-if="catalog.loading" class="mp-empty">
       <text class="t-caption">加载中</text>
     </view>

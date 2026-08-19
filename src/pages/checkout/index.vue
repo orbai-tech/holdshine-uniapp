@@ -4,21 +4,35 @@ import { onHide, onShow, onUnload } from '@dcloudio/uni-app'
 import SoorakChrome from '@/components/soorak-chrome/soorak-chrome.vue'
 import SoorakButton from '@/components/soorak-button/soorak-button.vue'
 import SoorakSheet from '@/components/soorak-sheet/soorak-sheet.vue'
-import { listMyCoupons } from '@/common/apis/couponApi'
+import { quoteDelivery } from '@/common/apis/deliveryApi'
+import { listMyCoupons, listUsableCoupons } from '@/common/apis/couponApi'
+import { listAvailableTables } from '@/common/apis/tableApi'
+import type { DeliveryQuoteRes } from '@/common/types/delivery'
 import type { MyCouponRes } from '@/common/types/coupon'
-import type { TableCode } from '@/common/types/fulfillment'
-import { TABLE_CODE_OPTIONS } from '@/common/types/fulfillment'
+import type { MpAvailableTableRes } from '@/common/types/table'
 import { lineAmount, useCartStore } from '@/stores/cart'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSessionStore } from '@/stores/session'
+import {
+  calcDeliveryPayable,
+  canSubmitDeliveryQuote,
+  parseAddressId,
+} from '@/utils/deliveryCheckout'
 import { toErrorMessage } from '@/utils/errorMessage'
 import { formatItemSpec } from '@/utils/orderItemLabel'
 import { parseAmount } from '@/utils/money'
 import {
+  applyMemberDiscount,
   calcCouponDiscount,
   calcPayable,
   evaluateCouponsForSubtotal,
+  formatMemberGoodsMoney,
+  memberSaveAmount,
+  mergeCouponUsableFlags,
 } from '@/utils/pricing'
+import { toServiceMode } from '@/common/types/orderEnums'
+import { orderCheckoutIntent } from '@/utils/clientToken'
+import { createDebounced } from '@/utils/timing'
 
 const session = useSessionStore()
 const cart = useCartStore()
@@ -26,11 +40,22 @@ const catalog = useCatalogStore()
 
 const remark = ref('')
 const tableSheetOpen = ref(false)
+const availableTables = ref<MpAvailableTableRes[]>([])
+const tablesBusy = ref(false)
+const tablesHint = ref('')
 const couponSheetOpen = ref(false)
-/** 选中的顾客券；折扣本地试算，支付时交后端重算核销 */
+/** 选中的顾客券；列表来自 usable，折扣由前端本地试算 */
 const selectedCouponId = ref<string | null>(null)
 const coupons = ref<MyCouponRes[]>([])
 const couponsBusy = ref(false)
+/** true = 列表来自 GET .../coupons/usable */
+const couponsFromUsable = ref(false)
+
+const deliveryQuote = ref<DeliveryQuoteRes | null>(null)
+const deliveryQuoteBusy = ref(false)
+const deliveryQuoteHint = ref('')
+const CHECKOUT_DEBOUNCE_MS = 300
+let deliveryQuoteSeq = 0
 
 const usingRemote = computed(() => Boolean(cart.remote))
 const empty = computed(() =>
@@ -45,10 +70,14 @@ const addressLine = computed(() => {
 })
 const tableLabel = computed(() => {
   if (session.pickupSubMode !== 'dine_in') return ''
-  return session.tableCode ? `桌码 ${session.tableCode}` : '桌码 无'
+  if (session.tableName) return session.tableName
+  if (session.tableCode) return `桌码 ${session.tableCode}`
+  return '桌码 无'
 })
 
-/** 商品小计：有 remote 用服务端商品+加料；否则本地累加 */
+const hasScannedTable = computed(() => session.tableFromScan && session.tableId != null)
+
+/** 商品小计：有 remote 用服务端商品+加料；否则本地累加（会员折前原价） */
 const goodsSubtotal = computed(() => {
   if (cart.remote) {
     return (
@@ -58,9 +87,22 @@ const goodsSubtotal = computed(() => {
   return cart.items.reduce((sum, item) => sum + lineAmount(item), 0)
 })
 
-const evaluatedCoupons = computed(() =>
-  evaluateCouponsForSubtotal(coupons.value, goodsSubtotal.value),
+/** 原价 → 会员折（饮品两位小数）；未开通则等于原价 */
+const afterMemberSubtotal = computed(() =>
+  applyMemberDiscount(goodsSubtotal.value, session.coffeeDiscountRate, 'coffee'),
 )
+
+const memberSave = computed(() =>
+  memberSaveAmount(goodsSubtotal.value, afterMemberSubtotal.value),
+)
+
+const memberSaveText = computed(() => formatMemberGoodsMoney(memberSave.value, 'coffee'))
+
+const evaluatedCoupons = computed(() => {
+  const local = evaluateCouponsForSubtotal(coupons.value, afterMemberSubtotal.value)
+  if (!couponsFromUsable.value) return local
+  return mergeCouponUsableFlags(local, coupons.value)
+})
 
 const selectedCoupon = computed(() =>
   evaluatedCoupons.value.find((item) => item.customer_coupon_id === selectedCouponId.value) ??
@@ -69,12 +111,33 @@ const selectedCoupon = computed(() =>
 
 const discountAmount = computed(() => {
   if (!selectedCoupon.value) return 0
-  return calcCouponDiscount(goodsSubtotal.value, selectedCoupon.value).discount
+  return calcCouponDiscount(afterMemberSubtotal.value, selectedCoupon.value).discount
 })
 
 const discountAmountText = computed(() => discountAmount.value.toFixed(2))
 
-const displayTotal = computed(() => calcPayable(goodsSubtotal.value, discountAmount.value))
+/** 会员折后小计 − 券；再加包装/配送（外卖） */
+const goodsPayable = computed(() =>
+  calcPayable(afterMemberSubtotal.value, discountAmount.value),
+)
+
+const displayTotal = computed(() => {
+  if (!isDelivery.value) return goodsPayable.value
+  return calcDeliveryPayable(goodsPayable.value, deliveryQuote.value)
+})
+
+const displayTotalText = computed(() => displayTotal.value.toFixed(2))
+
+const afterMemberText = computed(() =>
+  formatMemberGoodsMoney(afterMemberSubtotal.value, 'coffee'),
+)
+
+const deliveryFeeText = computed(() =>
+  deliveryQuote.value ? deliveryQuote.value.delivery_fee : '—',
+)
+const packingFeeText = computed(() =>
+  deliveryQuote.value ? deliveryQuote.value.packing_fee : '—',
+)
 
 const couponLabel = computed(() => {
   if (couponsBusy.value && !coupons.value.length) return '加载中…'
@@ -93,14 +156,92 @@ const couponValueClass = computed(() =>
     : 'ck-row__value--muted',
 )
 
+function clearDeliveryQuote() {
+  deliveryQuote.value = null
+  deliveryQuoteHint.value = ''
+}
+
+function discardInFlightQuote() {
+  deliveryQuoteSeq += 1
+  deliveryQuoteBusy.value = false
+}
+
+async function refreshDeliveryQuote() {
+  if (!isDelivery.value) {
+    discardInFlightQuote()
+    clearDeliveryQuote()
+    return
+  }
+  const storeId = catalog.currentStoreId
+  const addressId = parseAddressId(session.deliveryAddress?.address_id)
+  if (storeId == null || addressId == null) {
+    discardInFlightQuote()
+    clearDeliveryQuote()
+    deliveryQuoteHint.value = addressId == null ? '请先保存收货地址后再询价' : ''
+    return
+  }
+  if (empty.value) {
+    discardInFlightQuote()
+    clearDeliveryQuote()
+    return
+  }
+
+  const seq = ++deliveryQuoteSeq
+  deliveryQuoteBusy.value = true
+  try {
+    // 产品默认微信即时配送；当前 mock 询价仍走本地 mock 通道（见 ACTIVE_DELIVERY_PROVIDER）
+    const quote = await quoteDelivery({
+      store_id: storeId,
+      address_id: addressId,
+      product_amount: afterMemberSubtotal.value,
+    })
+    if (seq !== deliveryQuoteSeq) return
+    deliveryQuote.value = quote
+    deliveryQuoteHint.value = quote.message || ''
+  } catch (error) {
+    if (seq !== deliveryQuoteSeq) return
+    clearDeliveryQuote()
+    deliveryQuoteHint.value = toErrorMessage(error, '配送询价失败').slice(0, 40)
+  } finally {
+    if (seq === deliveryQuoteSeq) deliveryQuoteBusy.value = false
+  }
+}
+
+const scheduleRefreshCoupons = createDebounced(() => {
+  void refreshCoupons()
+}, CHECKOUT_DEBOUNCE_MS)
+
+const scheduleRefreshDeliveryQuote = createDebounced(() => {
+  void refreshDeliveryQuote()
+}, CHECKOUT_DEBOUNCE_MS)
+
 async function refreshCoupons() {
   if (empty.value || !session.loggedIn) {
     coupons.value = []
+    couponsFromUsable.value = false
+    return
+  }
+  const storeId = catalog.currentStoreId
+  if (storeId == null) {
+    coupons.value = []
+    couponsFromUsable.value = false
     return
   }
   couponsBusy.value = true
   try {
-    coupons.value = await listMyCoupons()
+    const serviceMode = toServiceMode(session) ?? 1
+    try {
+      coupons.value = await listUsableCoupons({
+        store_id: storeId,
+        goods_amount: goodsSubtotal.value,
+        service_mode: serviceMode,
+      })
+      couponsFromUsable.value = true
+    } catch {
+      const mine = await listMyCoupons()
+      coupons.value = mine.list
+      couponsFromUsable.value = false
+    }
     if (
       selectedCouponId.value != null &&
       !coupons.value.some((item) => item.customer_coupon_id === selectedCouponId.value)
@@ -109,6 +250,7 @@ async function refreshCoupons() {
     }
   } catch (error) {
     coupons.value = []
+    couponsFromUsable.value = false
     uni.showToast({ title: toErrorMessage(error, '优惠券加载失败').slice(0, 40), icon: 'none' })
   } finally {
     couponsBusy.value = false
@@ -118,8 +260,18 @@ async function refreshCoupons() {
 onShow(() => {
   session.hideNativeTabBar()
   session.setSuppressTabBar(true)
+  // 未选履约时确认单仍展示堂食 UI（pickupSubMode 默认 dine_in），与提交校验对齐
+  if (session.fulfillmentMode == null) {
+    session.setFulfillmentMode('dine_in')
+  }
+  void session.refreshMemberRates()
   if (catalog.currentStoreId != null) {
-    void cart.refreshCart().then(() => refreshCoupons())
+    void cart.refreshCart().then(async () => {
+      await refreshCoupons()
+      if (isDelivery.value) {
+        await refreshDeliveryQuote()
+      }
+    })
   }
 })
 
@@ -129,6 +281,10 @@ onHide(() => {
 
 onUnload(() => {
   session.setSuppressTabBar(false)
+  scheduleRefreshCoupons.cancel()
+  scheduleRefreshDeliveryQuote.cancel()
+  discardInFlightQuote()
+  orderCheckoutIntent.clear()
 })
 
 watch(
@@ -144,6 +300,38 @@ watch(
   },
 )
 
+watch(afterMemberSubtotal, () => {
+  if (!session.loggedIn || empty.value) return
+  scheduleRefreshCoupons()
+})
+
+watch(
+  [
+    isDelivery,
+    () => session.deliveryAddress?.address_id,
+    afterMemberSubtotal,
+    () => catalog.currentStoreId,
+  ],
+  () => {
+    if (!isDelivery.value) {
+      scheduleRefreshDeliveryQuote.cancel()
+      discardInFlightQuote()
+      clearDeliveryQuote()
+      return
+    }
+    scheduleRefreshDeliveryQuote()
+  },
+)
+
+watch(
+  () => session.coffeeDiscountRate,
+  () => {
+    if (!session.loggedIn || empty.value) return
+    scheduleRefreshCoupons()
+    if (isDelivery.value) scheduleRefreshDeliveryQuote()
+  },
+)
+
 function itemImage(productId: number) {
   return catalog.findProduct(String(productId))?.img || '/static/images/products/latte.jpg'
 }
@@ -153,25 +341,83 @@ function remoteSpec(item: { sku_name?: string | null; options?: { option_name?: 
 }
 
 function openAddress() {
-  session.openAddressEditor()
+  session.openAddressBook()
 }
 
 function onTapDineIn() {
   session.setPickupSubMode('dine_in')
-  tableSheetOpen.value = true
+  // 扫码入座或刚从打包恢复的桌台：不再弹选桌，避免 mock 占用态把原桌打成「不可选」
+  if (hasScannedTable.value || session.tableId != null) return
+  void openTableSheet()
 }
 
 function onTapPack() {
   session.setPickupSubMode('pack')
 }
 
-function pickTable(code: TableCode | null) {
-  session.setTableCode(code)
-  tableSheetOpen.value = false
+async function openTableSheet() {
+  tableSheetOpen.value = true
+  const storeId = catalog.currentStoreId
+  if (storeId == null) {
+    availableTables.value = []
+    tablesHint.value = '请先选择门店'
+    return
+  }
+  tablesBusy.value = true
+  tablesHint.value = ''
+  try {
+    const data = await listAvailableTables(storeId)
+    availableTables.value = data.list ?? []
+    if (!availableTables.value.length) {
+      tablesHint.value = '暂无可选桌台'
+    }
+  } catch (error) {
+    availableTables.value = []
+    tablesHint.value = toErrorMessage(error, '桌台加载失败')
+    uni.showToast({ title: tablesHint.value.slice(0, 40), icon: 'none' })
+  } finally {
+    tablesBusy.value = false
+  }
 }
 
-function tableOptionLabel(code: TableCode | null) {
-  return code ?? '无'
+function pickTable(table: MpAvailableTableRes | null) {
+  if (table && !table.selectable) {
+    uni.showToast({ title: '该桌台不可选', icon: 'none' })
+    return
+  }
+  try {
+    session.applyAvailableTable(
+      table
+        ? {
+            table_id: table.table_id,
+            table_code: table.table_code,
+            table_name: table.table_name,
+          }
+        : null,
+    )
+    tableSheetOpen.value = false
+  } catch (error) {
+    uni.showToast({
+      title: toErrorMessage(error, '选桌失败').slice(0, 40),
+      icon: 'none',
+    })
+  }
+}
+
+function tableStatusLabel(table: MpAvailableTableRes) {
+  if (table.selectable) return '空闲可选'
+  if (table.table_status === 2) return '用餐中'
+  if (table.table_status === 3) return '待清台'
+  if (table.table_status === 0) return '已停用'
+  return '不可选'
+}
+
+function isTableSelected(table: MpAvailableTableRes) {
+  return (
+    session.pickupSubMode === 'dine_in' &&
+    session.tableId != null &&
+    String(session.tableId) === String(table.table_id)
+  )
 }
 
 function openCouponSheet() {
@@ -202,12 +448,23 @@ async function submitPay() {
     uni.showToast({ title: '请选择收货地址', icon: 'none' })
     return
   }
+  if (isDelivery.value && parseAddressId(session.deliveryAddress?.address_id) == null) {
+    uni.showToast({ title: '请先保存收货地址', icon: 'none' })
+    return
+  }
+  if (isDelivery.value && !canSubmitDeliveryQuote(deliveryQuote.value)) {
+    uni.showToast({
+      title: (deliveryQuote.value?.message || deliveryQuoteHint.value || '暂不可配送').slice(0, 40),
+      icon: 'none',
+    })
+    return
+  }
   uni.showLoading({ title: '提交中', mask: true })
   try {
     await cart.submitCheckout({
       remark: remark.value,
       customer_coupon_id: selectedCouponId.value,
-      client_payable_amount: displayTotal.value,
+      expected_payable: displayTotal.value,
     })
   } catch (error) {
     uni.showToast({ title: toErrorMessage(error, '提交失败').slice(0, 40), icon: 'none' })
@@ -222,7 +479,7 @@ async function submitPay() {
     <view v-if="empty" class="mp-empty">
       <text class="mp-empty__title">购物袋是空的</text>
       <text class="t-caption">先去点一杯</text>
-      <SoorakButton @click="session.goTab('/pages/menu/index')">去点单</SoorakButton>
+      <SoorakButton @click="session.goMenu()">去点单</SoorakButton>
     </view>
 
     <view v-else class="page-checkout">
@@ -246,6 +503,20 @@ async function submitPay() {
           <text class="ck-row__value">尽快送达</text>
           <text class="ck-arrow">›</text>
         </view>
+
+        <view class="ck-card ck-row">
+          <text class="ck-row__label">配送费</text>
+          <text class="ck-row__value" :class="{ 'ck-row__value--muted': !deliveryQuote }">
+            {{ deliveryQuoteBusy ? '询价中…' : `¥${deliveryFeeText}` }}
+          </text>
+        </view>
+        <view class="ck-card ck-row">
+          <text class="ck-row__label">包装费</text>
+          <text class="ck-row__value" :class="{ 'ck-row__value--muted': !deliveryQuote }">
+            {{ deliveryQuoteBusy ? '询价中…' : `¥${packingFeeText}` }}
+          </text>
+        </view>
+        <text v-if="deliveryQuoteHint" class="ck-delivery-hint t-caption">{{ deliveryQuoteHint }}</text>
       </template>
 
       <!-- 堂食：门店 + 预约 + 店内就餐/打包 -->
@@ -335,14 +606,19 @@ async function submitPay() {
           <text class="ck-arrow">›</text>
         </view>
 
+        <view v-if="memberSave > 0" class="ck-discount">
+          <text>会员优惠</text>
+          <text class="ck-discount__val">-¥{{ memberSaveText }}</text>
+        </view>
+
         <view v-if="discountAmount > 0" class="ck-discount">
-          <text>优惠</text>
+          <text>优惠券</text>
           <text class="ck-discount__val">-¥{{ discountAmountText }}</text>
         </view>
 
         <view class="ck-total">
           <text>合计</text>
-          <text class="ck-total__price">¥{{ displayTotal }}</text>
+          <text class="ck-total__price">¥{{ displayTotalText }}</text>
         </view>
       </view>
 
@@ -363,27 +639,47 @@ async function submitPay() {
     <view v-if="!empty" class="ck-bar">
       <view class="ck-bar__sum">
         <text class="ck-bar__count">共{{ itemCount }}件 合计</text>
-        <text class="ck-bar__price">¥{{ displayTotal }}</text>
+        <text class="ck-bar__price">¥{{ displayTotalText }}</text>
       </view>
       <view class="ck-bar__btn" hover-class="ck-bar__btn--active" @click="submitPay">
         <text>提交支付</text>
       </view>
     </view>
 
-    <SoorakSheet :open="tableSheetOpen" title="选择桌码" @close="tableSheetOpen = false">
+    <SoorakSheet :open="tableSheetOpen" title="选择桌台" @close="tableSheetOpen = false">
       <view class="table-list">
+        <view v-if="tablesBusy" class="table-hint">
+          <text class="t-caption">加载桌台…</text>
+        </view>
+        <view v-else-if="tablesHint" class="table-hint">
+          <text class="t-caption">{{ tablesHint }}</text>
+        </view>
         <view
-          v-for="code in TABLE_CODE_OPTIONS"
-          :key="tableOptionLabel(code)"
           class="table-option"
           :class="{
-            'is-on':
-              session.pickupSubMode === 'dine_in' &&
-              ((code == null && session.tableCode == null) || session.tableCode === code),
+            'is-on': session.pickupSubMode === 'dine_in' && session.tableId == null,
           }"
-          @click="pickTable(code)"
+          @click="pickTable(null)"
         >
-          <text>{{ tableOptionLabel(code) }}</text>
+          <text>无桌码</text>
+        </view>
+        <view
+          v-for="table in availableTables"
+          :key="table.table_id"
+          class="table-option"
+          :class="{
+            'is-on': isTableSelected(table),
+            'is-disabled': !table.selectable,
+          }"
+          @click="pickTable(table)"
+        >
+          <view class="table-option__main">
+            <text class="table-option__title">{{ table.table_name || table.table_code }}</text>
+            <text class="table-option__meta">
+              {{ table.table_code }} · {{ tableStatusLabel(table) }}
+              <template v-if="table.capacity"> · {{ table.capacity }}人</template>
+            </text>
+          </view>
         </view>
       </view>
     </SoorakSheet>
@@ -507,6 +803,12 @@ async function submitPay() {
 
 .ck-row__value--muted {
   color: $mp-text-3;
+}
+
+.ck-delivery-hint {
+  display: block;
+  margin: -8rpx 8rpx 8rpx;
+  color: $mp-brass;
 }
 
 .ck-store {
@@ -754,9 +1056,13 @@ async function submitPay() {
   gap: 16rpx;
 }
 
+.table-hint {
+  padding: 8rpx 4rpx 4rpx;
+}
+
 .table-option {
   min-height: 96rpx;
-  padding: 0 28rpx;
+  padding: 20rpx 28rpx;
   border-radius: 12rpx;
   display: flex;
   align-items: center;
@@ -766,10 +1072,34 @@ async function submitPay() {
   background: $mp-cloud;
 }
 
+.table-option__main {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.table-option__title {
+  font-size: 30rpx;
+  color: inherit;
+}
+
+.table-option__meta {
+  font-size: 22rpx;
+  color: $mp-text-3;
+}
+
 .table-option.is-on {
   color: $mp-paper;
   background: $mp-moss;
   box-shadow: none;
+}
+
+.table-option.is-on .table-option__meta {
+  color: rgba(247, 244, 238, 0.72);
+}
+
+.table-option.is-disabled {
+  opacity: 0.45;
 }
 
 .addr-ph {

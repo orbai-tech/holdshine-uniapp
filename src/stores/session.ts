@@ -1,9 +1,11 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { fetchAuthProfile, loginByWxCode, logoutRemote } from '@/common/apis/authApi'
+import { fetchAuthProfile, loginByWxCode, logoutRemote, toAuthUser } from '@/common/apis/authApi'
 import { addressResToDelivery, listAddresses } from '@/common/apis/addressApi'
+import { getMemberSummary } from '@/common/apis/memberApi'
+import { listMpStores, storeIdOf } from '@/common/apis/storeApi'
+import type { AuthUser, LoginOptions, MpUserInfoRes } from '@/common/types/auth'
 import type { RitualId } from '@/common/types/catalog'
-import type { AuthUser } from '@/common/types/auth'
 import type {
   DeliveryAddress,
   FulfillmentMode,
@@ -18,15 +20,20 @@ import {
   readStoredUser,
   subscribeUnauthorized,
 } from '@/utils/authStorage'
+import { toStoreId } from '@/utils/storeId'
+import { toGoldMemberSummary } from '@/utils/memberLabel'
 import { getWxLoginCode } from '@/utils/wxLogin'
+import { useCatalogStore } from './catalog'
 
 const TAB_URLS = [
   '/pages/home/index',
-  '/pages/menu/index',
   '/pages/orders/index',
   '/pages/select/index',
   '/pages/mine/index',
 ] as const
+
+const MENU_URL = '/pages/menu/index'
+const LOGIN_URL = '/pages/login/index'
 
 const ADDRESS_KEY = 'soorak_delivery_address'
 
@@ -49,6 +56,7 @@ export const useSessionStore = defineStore('session', () => {
   const categoryId = ref<number | null>(null)
   const productId = ref<string | null>(null)
   const cartOpen = ref(false)
+  const loginSheetMode = ref<'login' | 'reconsent'>('login')
   const suppressTabBar = ref(false)
   const token = ref('')
   const user = ref<AuthUser | null>(null)
@@ -57,17 +65,36 @@ export const useSessionStore = defineStore('session', () => {
 
   const fulfillmentMode = ref<FulfillmentMode | null>(null)
   const pickupSubMode = ref<PickupSubMode>('dine_in')
-  const tableCode = ref<TableCode | null>(null)
+  const tableCode = ref<string | null>(null)
+  const tableId = ref<number | null>(null)
+  const tableName = ref<string | null>(null)
+  /** 是否由扫桌码 resolve 写入（确认单只读，不打开选桌 Sheet） */
+  const tableFromScan = ref(false)
+  /** 切到「打包」时暂存堂食桌台，切回店内就餐可恢复 */
+  const stashedDineTable = ref<{
+    tableId: number | null
+    tableCode: string | null
+    tableName: string | null
+    tableFromScan: boolean
+  } | null>(null)
   const deliveryAddress = ref<DeliveryAddress | null>(readStoredAddress())
+
+  /** 会员月卡折扣：来自 GET /member/summary；未开通则不折 */
+  const memberActive = ref(false)
+  const coffeeDiscountRate = ref<string | null>(null)
+  const mallDiscountRate = ref<string | null>(null)
 
   const productOpen = computed(() => Boolean(productId.value))
   const loggedIn = computed(() => Boolean(token.value && user.value))
+  const needReconsent = computed(() => Boolean(loggedIn.value && user.value?.needReconsent))
   /** 原生 tabBar 始终隐藏，页面内纯文字导航由 chrome 渲染 */
   const tabBarVisible = computed(
     () => !productOpen.value && !cartOpen.value && !suppressTabBar.value,
   )
 
   let profileChecked = false
+  let loginWaiters: Array<(ok: boolean) => void> = []
+  let loginWaitPromise: Promise<boolean> | null = null
 
   function currentTabUrl(): string {
     const pages = getCurrentPages()
@@ -84,10 +111,38 @@ export const useSessionStore = defineStore('session', () => {
 
   watch([productId, cartOpen, suppressTabBar], hideNativeTabBar)
 
+  function pageRouteOf(page: { route?: string } | undefined): string {
+    return page?.route ? `/${page.route}` : ''
+  }
+
+  function isLoginPageOnStack(): boolean {
+    return getCurrentPages().some((page) => pageRouteOf(page) === LOGIN_URL)
+  }
+
+  function isLoginPageTop(): boolean {
+    return currentTabUrl() === LOGIN_URL
+  }
+
+  function navigateToLoginPage() {
+    uni.navigateTo({
+      url: LOGIN_URL,
+      fail() {
+        resolveLoginRequest(false)
+      },
+    })
+  }
+
+  function hasPendingLoginRequest() {
+    return Boolean(loginWaitPromise)
+  }
+
   function goTab(url: TabUrl) {
     productId.value = null
     cartOpen.value = false
     suppressTabBar.value = false
+    if (loginWaitPromise) {
+      resolveLoginRequest(false)
+    }
     if (currentTabUrl() === url) {
       hideNativeTabBar()
       return
@@ -112,10 +167,55 @@ export const useSessionStore = defineStore('session', () => {
     persistSession(nextToken, nextUser)
   }
 
+  /** 资料接口返回的 userinfo / AuthUser 写回会话（token 不变）。 */
+  function applyUser(nextUser: AuthUser) {
+    if (!token.value) return
+    applySession(token.value, nextUser)
+  }
+
+  function applyUserInfo(info: MpUserInfoRes) {
+    applyUser(toAuthUser(info))
+  }
+
+  async function refreshProfile() {
+    if (!token.value) return null
+    const profile = await fetchAuthProfile()
+    applySession(token.value, profile)
+    return profile
+  }
+
+  function clearMemberRates() {
+    memberActive.value = false
+    coffeeDiscountRate.value = null
+    mallDiscountRate.value = null
+  }
+
+  /** 拉取会员摘要折扣；失败静默，计价按不打折 */
+  async function refreshMemberRates() {
+    if (!token.value || !user.value) {
+      clearMemberRates()
+      return
+    }
+    try {
+      const summary = toGoldMemberSummary(await getMemberSummary())
+      if (!summary) {
+        clearMemberRates()
+        return
+      }
+      const active = Boolean(summary.is_active)
+      memberActive.value = active
+      coffeeDiscountRate.value = active ? summary.coffee_discount_rate || null : null
+      mallDiscountRate.value = active ? summary.mall_discount_rate || null : null
+    } catch {
+      clearMemberRates()
+    }
+  }
+
   function clearSession() {
     token.value = ''
     user.value = null
     lastLoginMock.value = false
+    clearMemberRates()
     clearSessionStorage()
   }
 
@@ -127,6 +227,22 @@ export const useSessionStore = defineStore('session', () => {
       return
     }
     applySession(storedToken, storedUser)
+    void refreshMemberRates()
+  }
+
+  function openLoginPage(mode: 'login' | 'reconsent'): Promise<boolean> {
+    loginSheetMode.value = mode
+    productId.value = null
+    cartOpen.value = false
+    if (loginWaitPromise) {
+      if (!isLoginPageOnStack()) navigateToLoginPage()
+      return loginWaitPromise
+    }
+    loginWaitPromise = new Promise<boolean>((resolve) => {
+      loginWaiters.push(resolve)
+    })
+    if (!isLoginPageTop()) navigateToLoginPage()
+    return loginWaitPromise
   }
 
   async function verifySession() {
@@ -137,27 +253,63 @@ export const useSessionStore = defineStore('session', () => {
       const profile = await fetchAuthProfile()
       applySession(token.value, profile)
       void hydrateDeliveryAddressFromApi()
+      void refreshMemberRates()
+      if (profile.needReconsent) void requestReconsent()
     } catch {
       clearSession()
     }
   }
 
-  async function login() {
+  async function login(options: LoginOptions) {
     if (authBusy.value) return
+    const consent = options.consent
+    if (!consent?.privacyPolicyVersion.trim() || !consent.userHandbookVersion.trim()) {
+      throw new Error('协议版本加载失败，请稍后重试')
+    }
     authBusy.value = true
     try {
       const payload = await getWxLoginCode()
+      if (options.wxPhoneCode) payload.wxPhoneCode = options.wxPhoneCode
       console.info('[元气善筑] 准备换票', payload.platform, payload.code.slice(0, 8))
-      const result = await loginByWxCode(payload)
+      const result = await loginByWxCode({
+        ...payload,
+        agreePrivacyPolicy: true,
+        privacyPolicyVersion: consent.privacyPolicyVersion,
+        agreeUserHandbook: true,
+        userHandbookVersion: consent.userHandbookVersion,
+      })
       lastLoginMock.value = false
-      applySession(result.token, result.user)
+      applySession(result.token, { ...result.user, needReconsent: false })
       void hydrateDeliveryAddressFromApi()
+      void refreshMemberRates()
     } finally {
       authBusy.value = false
     }
   }
 
-  /** 购物车/下单等写操作入口：本地有会话则先验 /me（mock 重启后内存票会失效）；失败则静默换票。 */
+  function resolveLoginRequest(ok: boolean) {
+    loginSheetMode.value = 'login'
+    const waiters = loginWaiters
+    loginWaiters = []
+    loginWaitPromise = null
+    for (const resolve of waiters) resolve(ok)
+  }
+
+  /** 未登录时打开登录页；已登录但需重签则走重签。 */
+  function requestLogin(): Promise<boolean> {
+    if (loggedIn.value && !needReconsent.value) return Promise.resolve(true)
+    if (needReconsent.value) return requestReconsent()
+    return openLoginPage('login')
+  }
+
+  /** 协议升版后打开登录页重签，不清 token。 */
+  function requestReconsent(): Promise<boolean> {
+    if (!loggedIn.value) return openLoginPage('login')
+    if (!needReconsent.value) return Promise.resolve(true)
+    return openLoginPage('reconsent')
+  }
+
+  /** 购物车/下单等写操作入口：已登录先验 /me；未登录或票失效则进入登录页。 */
   async function ensureLogin(): Promise<boolean> {
     if (authBusy.value) {
       await new Promise<void>((resolve) => {
@@ -168,29 +320,47 @@ export const useSessionStore = defineStore('session', () => {
           }
         })
       })
-      if (loggedIn.value) return true
+      if (loggedIn.value && !needReconsent.value) return true
     }
     if (loggedIn.value) {
       try {
         const profile = await fetchAuthProfile()
         applySession(token.value, profile)
+        if (profile.needReconsent) return requestReconsent()
         return true
       } catch {
-        // 拦截器已清无效票；继续换票
         clearSession()
       }
     }
-    try {
-      await login()
-      return loggedIn.value
-    } catch (error) {
-      console.warn('[元气善筑] ensureLogin 失败', error)
-      return false
-    }
+    return requestLogin()
+  }
+
+  /** 打开地址簿前先过登录门禁。 */
+  async function openAddressBook() {
+    productId.value = null
+    cartOpen.value = false
+    const ok = await ensureLogin()
+    if (!ok) return
+    uni.navigateTo({
+      url: '/pages/address/index',
+      fail() {},
+    })
+  }
+
+  async function openAddressEditor(addressId?: string) {
+    productId.value = null
+    cartOpen.value = false
+    const ok = await ensureLogin()
+    if (!ok) return
+    const query = addressId ? `?id=${encodeURIComponent(addressId)}` : ''
+    uni.navigateTo({
+      url: `/pages/address/edit${query}`,
+      fail() {},
+    })
   }
 
   async function logout() {
-    if (authBusy.value) return
+    // 无论 authBusy 与否都清本地会话，避免「已退出」但 token 仍在
     authBusy.value = true
     try {
       if (token.value) {
@@ -200,8 +370,10 @@ export const useSessionStore = defineStore('session', () => {
           /* 本地仍清会话 */
         }
       }
-      clearSession()
     } finally {
+      clearSession()
+      profileChecked = false
+      if (loginWaitPromise) resolveLoginRequest(false)
       authBusy.value = false
     }
   }
@@ -232,10 +404,31 @@ export const useSessionStore = defineStore('session', () => {
     cartOpen.value = open
   }
 
+  function goMenu(opts?: { replace?: boolean }) {
+    productId.value = null
+    cartOpen.value = false
+    suppressTabBar.value = false
+    if (currentTabUrl() === MENU_URL) {
+      hideNativeTabBar()
+      return
+    }
+    const open = opts?.replace ? uni.redirectTo : uni.navigateTo
+    open({
+      url: MENU_URL,
+      fail() {
+        if (opts?.replace) return
+        uni.redirectTo({ url: MENU_URL, fail() {} })
+      },
+      complete() {
+        hideNativeTabBar()
+      },
+    })
+  }
+
   function goMenuWithRitual(id: RitualId | null) {
     ritualFilter.value = id
     categoryId.value = null
-    goTab('/pages/menu/index')
+    goMenu()
   }
 
   function openStorePicker(mode?: FulfillmentMode | null) {
@@ -249,16 +442,46 @@ export const useSessionStore = defineStore('session', () => {
     })
   }
 
-  function openAddressEditor() {
-    productId.value = null
-    cartOpen.value = false
-    uni.navigateTo({
-      url: '/pages/address/edit',
-      fail() {},
-    })
+  function clearTable() {
+    tableCode.value = null
+    tableId.value = null
+    tableName.value = null
+    tableFromScan.value = false
   }
 
-  function startDineIn() {
+  function stashDineTableForPack() {
+    if (tableId.value == null && tableCode.value == null && !tableName.value) {
+      return
+    }
+    stashedDineTable.value = {
+      tableId: tableId.value,
+      tableCode: tableCode.value,
+      tableName: tableName.value,
+      tableFromScan: tableFromScan.value,
+    }
+    clearTable()
+  }
+
+  function restoreStashedDineTable() {
+    const stash = stashedDineTable.value
+    if (!stash) return false
+    tableId.value = stash.tableId
+    tableCode.value = stash.tableCode
+    tableName.value = stash.tableName
+    tableFromScan.value = stash.tableFromScan
+    stashedDineTable.value = null
+    return true
+  }
+
+  /** 到店堂食：先过登录协议门禁，再进入选店。 */
+  async function startDineIn() {
+    if (!loggedIn.value || !token.value) {
+      const ok = await requestLogin()
+      if (!ok) return
+    } else {
+      const ok = await ensureLogin()
+      if (!ok) return
+    }
     fulfillmentMode.value = 'dine_in'
     pickupSubMode.value = 'dine_in'
     openStorePicker('dine_in')
@@ -266,27 +489,101 @@ export const useSessionStore = defineStore('session', () => {
 
   function startDelivery() {
     fulfillmentMode.value = 'delivery'
-    tableCode.value = null
-    openAddressEditor()
+    stashedDineTable.value = null
+    clearTable()
+    openAddressBook()
   }
 
   function setFulfillmentMode(mode: FulfillmentMode) {
     if (mode === fulfillmentMode.value) return
     fulfillmentMode.value = mode
     if (mode === 'delivery') {
-      tableCode.value = null
+      stashedDineTable.value = null
+      clearTable()
       pickupSubMode.value = 'dine_in'
     }
   }
 
   function setPickupSubMode(mode: PickupSubMode) {
+    // 确认单「店内就餐/打包」与点单履约同属堂食侧；须写入 fulfillmentMode，否则 submit 仍判未选
+    fulfillmentMode.value = 'dine_in'
+    if (mode === 'pack') {
+      stashDineTableForPack()
+    } else if (mode === 'dine_in') {
+      restoreStashedDineTable()
+    }
     pickupSubMode.value = mode
-    if (mode === 'pack') tableCode.value = null
   }
 
+  const FALLBACK_TABLE_ID: Record<TableCode, number> = {
+    A1: 1,
+    A2: 2,
+    A3: 3,
+  }
+
+  /** 本地假桌码（兼容旧入口）；确认单已改走 applyAvailableTable */
   function setTableCode(code: TableCode | null) {
     tableCode.value = code
+    tableId.value = code ? FALLBACK_TABLE_ID[code] : null
+    tableName.value = code
+    tableFromScan.value = false
+    fulfillmentMode.value = 'dine_in'
     pickupSubMode.value = 'dine_in'
+  }
+
+  /** 确认单选桌：写入契约返回的真实 table_id */
+  function applyAvailableTable(table: {
+    table_id: string | number
+    table_code: string
+    table_name: string
+  } | null) {
+    fulfillmentMode.value = 'dine_in'
+    pickupSubMode.value = 'dine_in'
+    stashedDineTable.value = null
+    if (!table) {
+      clearTable()
+      return
+    }
+    const tid = Number(table.table_id)
+    if (!Number.isInteger(tid) || tid <= 0) {
+      throw new Error('桌台编号无效')
+    }
+    tableId.value = tid
+    tableCode.value = (table.table_code || null) as TableCode | null
+    tableName.value = table.table_name || table.table_code || null
+    tableFromScan.value = false
+  }
+
+  /**
+   * 扫桌码 resolve 成功后：切店 + 堂食 + 真实桌台。
+   * 调用方负责随后 occupy。
+   */
+  async function applyResolvedTable(res: {
+    store_id: string
+    table_id: string
+    table_code: string
+    table_name: string
+  }) {
+    // 勿用 await import()：mp-weixin 会编译成 await "./catalog.js" 字符串，导致 useCatalogStore 非函数
+    const catalog = useCatalogStore()
+    const storeId = toStoreId(res.store_id)
+    const tid = Number(res.table_id)
+    if (!Number.isInteger(tid) || tid <= 0) {
+      throw new Error('桌台编号无效')
+    }
+    const page = await listMpStores({ page: 1, page_size: 100 })
+    const store = (page.list ?? []).find((item) => storeIdOf(item) === storeId)
+    if (!store) {
+      throw new Error('桌码对应门店不可用')
+    }
+    await catalog.selectStore(store)
+    fulfillmentMode.value = 'dine_in'
+    pickupSubMode.value = 'dine_in'
+    stashedDineTable.value = null
+    tableId.value = tid
+    tableCode.value = res.table_code
+    tableName.value = res.table_name
+    tableFromScan.value = true
   }
 
   function saveDeliveryAddress(next: DeliveryAddress) {
@@ -294,8 +591,17 @@ export const useSessionStore = defineStore('session', () => {
     uni.setStorageSync(ADDRESS_KEY, next)
   }
 
+  function clearDeliveryAddress() {
+    deliveryAddress.value = null
+    try {
+      uni.removeStorageSync(ADDRESS_KEY)
+    } catch {
+      /* ignore */
+    }
+  }
+
   /**
-   * 从 `/api/mp/addresses` 取默认或首条写入本地缓存。
+   * 从 `/api/mp/customer/addresses` 取默认或首条写入本地缓存。
    * 失败不挡登录；gender 契约无，保留本地已有或默认「先生」。
    */
   async function hydrateDeliveryAddressFromApi(): Promise<void> {
@@ -303,7 +609,14 @@ export const useSessionStore = defineStore('session', () => {
     try {
       const data = await listAddresses()
       const list = data?.list ?? []
-      if (!list.length) return
+      if (!list.length) {
+        // 服务端无地址时去掉本地失效 id，避免编辑页误走 PUT
+        const local = deliveryAddress.value
+        if (local?.address_id) {
+          saveDeliveryAddress({ ...local, address_id: undefined })
+        }
+        return
+      }
       const preferred = list.find((row) => row.is_default === 1) ?? list[0]
       const prevGender = deliveryAddress.value?.gender ?? '先生'
       saveDeliveryAddress(addressResToDelivery(preferred, prevGender))
@@ -323,40 +636,62 @@ export const useSessionStore = defineStore('session', () => {
     categoryId,
     productId,
     cartOpen,
+    loginSheetMode,
     suppressTabBar,
     token,
     user,
     authBusy,
     lastLoginMock,
     loggedIn,
+    needReconsent,
     productOpen,
     tabBarVisible,
     fulfillmentMode,
     pickupSubMode,
     tableCode,
+    tableId,
+    tableName,
+    tableFromScan,
     deliveryAddress,
+    memberActive,
+    coffeeDiscountRate,
+    mallDiscountRate,
     restoreSession,
     verifySession,
+    refreshMemberRates,
     login,
+    requestLogin,
+    requestReconsent,
+    resolveLoginRequest,
+    hasPendingLoginRequest,
     ensureLogin,
     logout,
+    applyUser,
+    applyUserInfo,
+    refreshProfile,
     handleUnauthorized,
     setRitualFilter,
     setCategoryId,
     openStorePicker,
+    openAddressBook,
     openAddressEditor,
     startDineIn,
     startDelivery,
     setFulfillmentMode,
     setPickupSubMode,
     setTableCode,
+    applyAvailableTable,
+    applyResolvedTable,
+    clearTable,
     saveDeliveryAddress,
+    clearDeliveryAddress,
     hydrateDeliveryAddressFromApi,
     orderModeLabel,
     openProduct,
     closeProduct,
     setCartOpen,
     setSuppressTabBar,
+    goMenu,
     goMenuWithRitual,
     goTab,
     hideNativeTabBar,

@@ -1,4 +1,4 @@
-/** 文档 DTO：GET /api/mp/stores/{store_id}/menu */
+/** 文档 DTO：GET /api/mp/customer/stores/{store_id}/menu */
 
 export interface MpMenuSkuRes {
   sku_id: number

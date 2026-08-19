@@ -7,7 +7,12 @@ withDefaults(
   { variant: 'primary', block: false },
 )
 
-const emit = defineEmits<{ click: [] }>()
+const emit = defineEmits<{ click: []; tap: [] }>()
+
+function onTap() {
+  emit('click')
+  emit('tap')
+}
 </script>
 
 <template>
@@ -15,7 +20,7 @@ const emit = defineEmits<{ click: [] }>()
     class="mp-btn"
     :class="[`mp-btn--${variant}`, { 'mp-btn--block': block }]"
     hover-class="mp-btn--active"
-    @click="emit('click')"
+    @tap="onTap"
   >
     <slot />
   </view>

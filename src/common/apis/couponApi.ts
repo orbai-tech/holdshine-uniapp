@@ -1,14 +1,15 @@
-import { http } from '@/plugin/request'
+﻿import { http } from '@/plugins/request'
 import type {
-  CheckoutPreviewReq,
-  CheckoutPreviewRes,
   CouponClaimReq,
-  CouponRedeemReq,
-  CouponRedeemRes,
   CouponTemplateBriefRes,
   CouponTemplateListRes,
+  ListUsableCouponsQuery,
+  MyCouponDetailRes,
   MyCouponListRes,
+  MyCouponListResult,
   MyCouponRes,
+  UsableCouponListRes,
+  UsableCouponRes,
 } from '@/common/types/coupon'
 
 function normalizeCoupon(raw: MyCouponRes): MyCouponRes {
@@ -33,26 +34,84 @@ function normalizeCoupon(raw: MyCouponRes): MyCouponRes {
   }
 }
 
-/**
- * 我的优惠券。真契约：`{ list: MyCouponRes[] }`；旧 mock 可能直接返回数组。
- */
-export async function listMyCoupons() {
-  const data = await http.get<MyCouponListRes | MyCouponRes[]>(
-    '/api/mp/coupons/mine',
-    undefined,
-    { showError: false },
-  )
+function toCustomerCouponId(raw: string | number): number {
+  const id = Number(raw)
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error('优惠券编号无效')
+  }
+  return id
+}
+
+function normalizeDetail(raw: MyCouponDetailRes): MyCouponDetailRes {
+  const template = raw.template
+  return {
+    ...raw,
+    customer_coupon_id: String(raw.customer_coupon_id),
+    coupon_no: raw.coupon_no || '',
+    coupon_status_label: raw.coupon_status_label || '',
+    valid_start_at: raw.valid_start_at || '',
+    valid_end_at: raw.valid_end_at || '',
+    template: {
+      coupon_template_id: String(template?.coupon_template_id ?? ''),
+      coupon_code: template?.coupon_code || '',
+      coupon_name: template?.coupon_name || raw.coupon_no || '礼遇',
+      coupon_type: Number(template?.coupon_type || 1),
+      discount_amount: template?.discount_amount,
+      discount_rate: template?.discount_rate,
+      threshold_amount: template?.threshold_amount,
+      valid_type: Number(template?.valid_type || 1),
+      valid_start_at: template?.valid_start_at,
+      valid_end_at: template?.valid_end_at,
+      valid_days: template?.valid_days,
+      description: template?.description,
+      claimed_count: template?.claimed_count,
+      can_claim: template?.can_claim,
+    },
+  }
+}
+
+function normalizeMineResponse(data: MyCouponListRes | MyCouponRes[] | null | undefined): MyCouponListResult {
   const list = Array.isArray(data) ? data : (data?.list ?? [])
-  return list.map(normalizeCoupon)
+  const counts = Array.isArray(data) ? undefined : data?.counts
+  return {
+    list: list.map(normalizeCoupon),
+    counts,
+  }
 }
 
 /**
- * 可领优惠券模板。Query `store_id` 为 integer。
+ * 我的优惠券。真契约：`{ list, counts? }`；旧 mock 可能直接返回数组。
  */
-export async function listAvailableCoupons(storeId: number) {
+export async function listMyCoupons(couponStatus?: number) {
+  const query: Record<string, number> = {}
+  if (couponStatus != null) {
+    if (!Number.isInteger(couponStatus) || couponStatus <= 0) {
+      throw new Error('优惠券状态无效')
+    }
+    query.coupon_status = couponStatus
+  }
+  const data = await http.get<MyCouponListRes | MyCouponRes[]>(
+    '/api/mp/customer/coupons/mine',
+    Object.keys(query).length ? query : undefined,
+    { showError: false },
+  )
+  return normalizeMineResponse(data)
+}
+
+/**
+ * 可领优惠券模板。Query `store_id` 可选（integer）；不传则不按门店过滤。
+ */
+export async function listAvailableCoupons(storeId?: number) {
+  const query: Record<string, number> = {}
+  if (storeId != null) {
+    if (!Number.isInteger(storeId) || storeId <= 0) {
+      throw new Error('门店编号无效')
+    }
+    query.store_id = storeId
+  }
   const data = await http.get<CouponTemplateListRes | CouponTemplateBriefRes[]>(
-    '/api/mp/coupons/available',
-    { store_id: storeId },
+    '/api/mp/customer/coupons/available',
+    Object.keys(query).length ? query : undefined,
     { showError: false },
   )
   return Array.isArray(data) ? data : (data?.list ?? [])
@@ -69,25 +128,52 @@ export async function claimCoupon(payload: {
   if (!Number.isInteger(coupon_template_id) || coupon_template_id <= 0) {
     throw new Error('优惠券模板编号无效')
   }
-  const body: CouponClaimReq = {
-    coupon_template_id,
-    store_id: payload.store_id ?? null,
+  const body: CouponClaimReq = { coupon_template_id }
+  if (payload.store_id != null) {
+    body.store_id = payload.store_id
   }
-  const raw = await http.post<MyCouponRes>('/api/mp/coupons/claim', body)
+  const raw = await http.post<MyCouponRes>('/api/mp/customer/coupons/claim', body)
   return normalizeCoupon(raw)
 }
 
-/**
- * @deprecated 契约已删；前端结账改为本地试算，勿再调用。
- */
-export function previewCheckout(payload: CheckoutPreviewReq) {
-  return http.post<CheckoutPreviewRes>('/api/mp/checkout/preview', payload, { showError: false })
+/** GET /api/mp/customer/coupons/mine/{customer_coupon_id} */
+export async function getMyCoupon(customerCouponId: string | number) {
+  const id = toCustomerCouponId(customerCouponId)
+  const raw = await http.get<MyCouponDetailRes>(`/api/mp/customer/coupons/mine/${id}`, undefined, {
+    showError: false,
+  })
+  return normalizeDetail(raw)
 }
 
 /**
- * 预留核销接口（文档暂无顾客端 path）。正式下单走「下单自动核销」，不必前端先调。
- * mock：`POST /api/mp/coupons/redeem`
+ * 结算可用优惠券。`goods_amount` 为商品+加料原价（不含配送/打包）。
+ * 仅用于可用性判定；展示折扣由前端本地试算。
  */
-export function redeemCoupon(payload: CouponRedeemReq) {
-  return http.post<CouponRedeemRes>('/api/mp/coupons/redeem', payload, { showError: false })
+export async function listUsableCoupons(query: ListUsableCouponsQuery) {
+  const storeId = Number(query.store_id)
+  if (!Number.isInteger(storeId) || storeId <= 0) {
+    throw new Error('门店编号无效')
+  }
+  const goodsAmount = Number(query.goods_amount)
+  if (!Number.isFinite(goodsAmount) || goodsAmount < 0) {
+    throw new Error('商品金额无效')
+  }
+  const params: Record<string, number | string> = {
+    store_id: storeId,
+    goods_amount: goodsAmount.toFixed(2),
+  }
+  if (query.service_mode != null) params.service_mode = query.service_mode
+  const data = await http.get<UsableCouponListRes | UsableCouponRes[]>(
+    '/api/mp/customer/coupons/usable',
+    params,
+    { showError: false },
+  )
+  const list = Array.isArray(data) ? data : (data?.list ?? [])
+  return list.map((row) =>
+    normalizeCoupon({
+      ...row,
+      usable: row.usable !== false,
+      unusable_reason: row.unusable_reason ?? null,
+    }),
+  )
 }

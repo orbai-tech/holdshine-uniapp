@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { storeIsOpenNow, storeStatusLabel } from '@/common/apis/storeApi'
 import type { StoreRes } from '@/common/types/store'
 
 const props = withDefaults(
@@ -13,6 +14,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   select: []
+  detail: []
 }>()
 
 const addressLine = computed(() => {
@@ -22,10 +24,10 @@ const addressLine = computed(() => {
 
 const hours = computed(() => props.info.business_hours || '营业时间待定')
 
-const openLabel = computed(() => (props.info.status === 1 ? '营业中' : '休息中'))
+const openLabel = computed(() => storeStatusLabel(props.info))
 
 const openTone = computed(() =>
-  props.info.status === 1 ? 'store-card__status--on' : 'store-card__status--off',
+  storeIsOpenNow(props.info) ? 'store-card__status--on' : 'store-card__status--off',
 )
 </script>
 
@@ -34,7 +36,7 @@ const openTone = computed(() =>
     <view class="store-card__main">
       <view class="store-card__name-row">
         <text class="store-card__name">{{ info.store_name }}</text>
-        <text class="store-card__chevron">›</text>
+        <text class="store-card__detail" @click.stop="emit('detail')">详情</text>
       </view>
       <view class="store-card__address">
         <text class="store-card__pin">⌖</text>
@@ -83,21 +85,24 @@ const openTone = computed(() =>
 .store-card__name-row {
   display: flex;
   align-items: center;
-  gap: 4rpx;
+  gap: 12rpx;
 }
 
 .store-card__name {
+  flex: 1;
+  min-width: 0;
   font-size: 30rpx;
   font-weight: 500;
   color: $mp-text;
   line-height: 1.35;
 }
 
-.store-card__chevron {
-  font-size: 32rpx;
-  line-height: 1;
-  color: $mp-text-3;
+.store-card__detail {
   flex-shrink: 0;
+  font-size: 22rpx;
+  letter-spacing: 0.08em;
+  color: $mp-brass;
+  padding: 4rpx 0;
 }
 
 .store-card__address {

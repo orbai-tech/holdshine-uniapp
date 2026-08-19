@@ -1,5 +1,4 @@
 import type { BrandInfo, Product, Ritual } from '@/common/types/catalog'
-import type { MemberProfile, MemberTier } from '@/common/types/member'
 
 export const brand: BrandInfo = {
   name: '元气善筑',
@@ -194,34 +193,3 @@ export const products: Product[] = [
   },
 ]
 
-export const memberTiers: MemberTier[] = [
-  {
-    id: 'silver',
-    name: '银卡',
-    threshold: 0,
-    perks: ['全场饮品 95 折', '积分累积', '会员日提醒'],
-  },
-  {
-    id: 'gold',
-    name: '金卡',
-    threshold: 2000,
-    perks: ['全场饮品 9 折', '生日燕窝饮兑换', '双倍积分日'],
-  },
-  {
-    id: 'platinum',
-    name: '铂金',
-    threshold: 5000,
-    perks: ['全场 85 折', '专属豆单优先', '免费手冲体验课'],
-  },
-]
-
-export const memberProfile: MemberProfile = {
-  name: '陈先生',
-  tier: '金卡会员',
-  memberNo: '8800 1266',
-  points: 2680,
-  growth: 3260,
-  nextTier: '铂金',
-  nextNeed: 1740,
-  balance: 326,
-}

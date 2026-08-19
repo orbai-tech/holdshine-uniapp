@@ -11,11 +11,24 @@ export function readStoredToken(): string {
 export function readStoredUser(): AuthUser | null {
   const raw = uni.getStorageSync(USER_KEY) as string | AuthUser | undefined
   if (!raw) return null
-  if (typeof raw === 'object') return raw
-  try {
-    return JSON.parse(raw) as AuthUser
-  } catch {
-    return null
+  let user: AuthUser | null = null
+  if (typeof raw === 'object') user = raw
+  else {
+    try {
+      user = JSON.parse(raw) as AuthUser
+    } catch {
+      return null
+    }
+  }
+  if (!user) return null
+  return {
+    openid: user.openid || '',
+    nickname: user.nickname || '',
+    avatarInitial: user.avatarInitial || (user.nickname || '?').slice(0, 1),
+    memberNo: user.memberNo || '',
+    mobile: user.mobile || '',
+    avatarPath: user.avatarPath || '',
+    needReconsent: Boolean(user.needReconsent),
   }
 }
 

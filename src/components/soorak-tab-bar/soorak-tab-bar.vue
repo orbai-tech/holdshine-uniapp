@@ -13,10 +13,13 @@ import { computed } from 'vue'
 import { useSessionStore } from '@/stores/session'
 import type { TabUrl } from '@/stores/session'
 
-const TABS: { text: string; url: TabUrl }[] = [
+type TabItem =
+  | { text: string; url: TabUrl }
+  | { text: string; action: 'cart' }
+
+const TABS: TabItem[] = [
   { text: '首页', url: '/pages/home/index' },
-  { text: '点单', url: '/pages/menu/index' },
-  { text: '订单', url: '/pages/orders/index' },
+  { text: '购物车', action: 'cart' },
   { text: '选物', url: '/pages/select/index' },
   { text: '我的', url: '/pages/mine/index' },
 ]
@@ -55,8 +58,24 @@ const activeUrl = computed(() => {
   return page?.route ? `/${page.route}` : ''
 })
 
-function onTap(url: TabUrl) {
-  session.goTab(url)
+function tabKey(tab: TabItem): string {
+  if ('action' in tab) return tab.action
+  return tab.url
+}
+
+function isTabOn(tab: TabItem): boolean {
+  if ('action' in tab) return false
+  return activeUrl.value === tab.url
+}
+
+function onTap(tab: TabItem) {
+  if ('action' in tab) {
+    if (tab.action === 'cart') {
+      session.setCartOpen(true)
+    }
+    return
+  }
+  session.goTab(tab.url)
 }
 </script>
 
@@ -66,11 +85,11 @@ function onTap(url: TabUrl) {
     <view class="mp-tabbar" :style="barStyle">
       <view
         v-for="tab in TABS"
-        :key="tab.url"
+        :key="tabKey(tab)"
         class="mp-tabbar__item"
-        :class="{ 'is-on': activeUrl === tab.url }"
+        :class="{ 'is-on': isTabOn(tab) }"
         hover-class="mp-tabbar__item--active"
-        @click="onTap(tab.url)"
+        @click="onTap(tab)"
       >
         <text class="mp-tabbar__label">{{ tab.text }}</text>
       </view>
@@ -82,11 +101,11 @@ function onTap(url: TabUrl) {
   <view class="mp-tabbar" :style="barStyle">
     <view
       v-for="tab in TABS"
-      :key="tab.url"
+      :key="tabKey(tab)"
       class="mp-tabbar__item"
-      :class="{ 'is-on': activeUrl === tab.url }"
+      :class="{ 'is-on': isTabOn(tab) }"
       hover-class="mp-tabbar__item--active"
-      @click="onTap(tab.url)"
+      @click="onTap(tab)"
     >
       <text class="mp-tabbar__label">{{ tab.text }}</text>
     </view>

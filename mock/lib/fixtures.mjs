@@ -9,8 +9,8 @@ export const stores = [
     store_name: '上海静安嘉里中心店',
     store_type: 1,
     status: 1,
-    contact_name: null,
-    mobile: null,
+    contact_name: '静安店长',
+    mobile: '021-12345678',
     logo_path: null,
     cover_path: null,
     province: '上海',
@@ -20,15 +20,22 @@ export const stores = [
     longitude: '121.4450',
     latitude: '31.2235',
     business_hours: '08:30 – 21:30',
+    coffee_open_now: false,
+    status_label: '休息中',
     enable_dine_in: 1,
     enable_takeaway: 1,
-    enable_mall: 0,
+    enable_mall: 1,
     enable_points: 1,
-    min_order_amount: null,
-    packing_fee: '0.00',
-    delivery_fee: '0.00',
-    free_delivery_amount: null,
-    delivery_radius_km: null,
+    min_order_amount: '30.00',
+    packing_fee: '1.00',
+    delivery_fee: '6.00',
+    free_delivery_amount: '68.00',
+    delivery_radius_km: '5.00',
+    mall_free_shipping_amount: null,
+    mall_default_freight: '0',
+    mall_ship_within_hours: null,
+    mall_courier: null,
+    mall_support_pickup: 0,
     dine_prep_minutes: 8,
     takeaway_prep_minutes: 8,
   },
@@ -38,8 +45,8 @@ export const stores = [
     store_name: '上海徐汇天钥桥店',
     store_type: 1,
     status: 1,
-    contact_name: null,
-    mobile: null,
+    contact_name: '徐汇店长',
+    mobile: '021-87654321',
     logo_path: null,
     cover_path: null,
     province: '上海',
@@ -49,15 +56,22 @@ export const stores = [
     longitude: '121.4370',
     latitude: '31.1850',
     business_hours: '08:00 – 21:00',
+    coffee_open_now: true,
+    status_label: '营业中',
     enable_dine_in: 1,
     enable_takeaway: 1,
-    enable_mall: 0,
+    enable_mall: 1,
     enable_points: 1,
-    min_order_amount: null,
-    packing_fee: '0.00',
-    delivery_fee: '0.00',
-    free_delivery_amount: null,
-    delivery_radius_km: null,
+    min_order_amount: '28.00',
+    packing_fee: '1.00',
+    delivery_fee: '5.00',
+    free_delivery_amount: '58.00',
+    delivery_radius_km: '4.00',
+    mall_free_shipping_amount: null,
+    mall_default_freight: '0',
+    mall_ship_within_hours: null,
+    mall_courier: null,
+    mall_support_pickup: 0,
     dine_prep_minutes: 10,
     takeaway_prep_minutes: 12,
   },
@@ -129,6 +143,58 @@ export const products = RAW.map((item) => ({
 
 export function findStore(storeId) {
   return stores.find((item) => item.store_id === String(storeId)) || null
+}
+
+/** GET /api/mp/customer/stores/{store_id} → MpStoreDetailRes */
+export function getStoreDetail(storeId, point = null) {
+  const store = findStore(storeId)
+  if (!store) return null
+  const lat = store.latitude != null ? Number(store.latitude) : null
+  const lng = store.longitude != null ? Number(store.longitude) : null
+  let distance_km = null
+  if (point && Number.isFinite(lat) && Number.isFinite(lng)) {
+    const toRad = (deg) => (deg * Math.PI) / 180
+    const dLat = toRad(point.latitude - lat)
+    const dLng = toRad(point.longitude - lng)
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat)) * Math.cos(toRad(point.latitude)) * Math.sin(dLng / 2) ** 2
+    distance_km = Math.round(6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 1000) / 1000
+  }
+  return {
+    store_id: store.store_id,
+    store_code: store.store_code,
+    store_name: store.store_name,
+    status: store.status,
+    mobile: store.mobile,
+    cover_path: store.cover_path,
+    logo_path: store.logo_path,
+    city: store.city,
+    district: store.district,
+    address: store.address,
+    business_hours: store.business_hours,
+    coffee_open_now: store.coffee_open_now !== false,
+    status_label: store.status_label || (store.coffee_open_now === false ? '休息中' : '营业中'),
+    enable_dine_in: store.enable_dine_in,
+    enable_takeaway: store.enable_takeaway,
+    enable_mall: store.enable_mall ?? 1,
+    enable_points: store.enable_points,
+    latitude: store.latitude,
+    longitude: store.longitude,
+    distance_km,
+    contact_name: store.contact_name ?? null,
+    province: store.province ?? null,
+    packing_fee: store.packing_fee ?? '0.00',
+    delivery_fee: store.delivery_fee ?? '0.00',
+    min_order_amount: store.min_order_amount ?? null,
+    free_delivery_amount: store.free_delivery_amount ?? null,
+    delivery_radius_km: store.delivery_radius_km ?? null,
+    mall_free_shipping_amount: store.mall_free_shipping_amount ?? null,
+    mall_default_freight: store.mall_default_freight ?? '0',
+    mall_ship_within_hours: store.mall_ship_within_hours ?? null,
+    mall_courier: store.mall_courier ?? null,
+    mall_support_pickup: store.mall_support_pickup ?? 0,
+  }
 }
 
 export function findProduct(productId) {

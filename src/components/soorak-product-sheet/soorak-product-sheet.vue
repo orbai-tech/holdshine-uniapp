@@ -10,12 +10,13 @@ export default {
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import SoorakSheet from '@/components/soorak-sheet/soorak-sheet.vue'
+import { storeIsOpenNow } from '@/common/apis/storeApi'
 import { useCartStore } from '@/stores/cart'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSessionStore } from '@/stores/session'
 import type { CupSize, DrinkTemp } from '@/common/types/commerce'
-import { toServiceMode } from '@/common/types/orderEnums'
-import { calcLineUnit, calcLocalFallbackUnit } from '@/utils/pricing'
+import { SERVICE_MODE, toServiceMode, toTableId } from '@/common/types/orderEnums'
+import { calcLineUnit, calcLocalFallbackUnit, applyMemberDiscount, formatMemberGoodsMoney } from '@/utils/pricing'
 
 const SIZES: CupSize[] = ['中杯', '大杯']
 const TEMPS: DrinkTemp[] = ['热', '正常冰', '少冰']
@@ -88,8 +89,32 @@ const unit = computed(() => {
   return localFallbackUnit.value
 })
 
+/** 零售走商城折扣；饮品走咖啡折扣并保留两位小数 */
+const memberUnit = computed(() => {
+  if (!product.value) return 0
+  const kind = product.value.cat === 'retail' ? 'mall' : 'coffee'
+  const rate =
+    kind === 'mall' ? session.mallDiscountRate : session.coffeeDiscountRate
+  return applyMemberDiscount(unit.value, rate, kind)
+})
+
+const displayUnitText = computed(() => {
+  if (!product.value) return '0'
+  const kind = product.value.cat === 'retail' ? 'mall' : 'coffee'
+  return formatMemberGoodsMoney(memberUnit.value, kind)
+})
+
+const displayLineText = computed(() => {
+  if (!product.value) return '0'
+  const kind = product.value.cat === 'retail' ? 'mall' : 'coffee'
+  const line = applyMemberDiscount(unit.value * qty.value, kind === 'mall' ? session.mallDiscountRate : session.coffeeDiscountRate, kind)
+  // 行金额：先折单价再×数量会与「整行折」略差；按整行折更贴合小计口径
+  return formatMemberGoodsMoney(line, kind)
+})
+
 const sheetOpen = computed(() => product.value != null)
 const sheetTitle = computed(() => (isRetail.value ? '商品详情' : '选规格'))
+const canAddToBag = computed(() => storeIsOpenNow(catalog.currentStore))
 
 const showRitual = computed(() => Boolean(product.value?.desc || product.value?.tag))
 
@@ -118,10 +143,13 @@ function toggleExtra(name: string) {
 
 async function add(openCart = true): Promise<boolean> {
   if (!product.value || cart.writeBusy) return false
+  if (!canAddToBag.value) return false
   const storeId = catalog.currentStoreId
   const productId = product.value.productId
   if (storeId == null || productId == null) return false
   const serviceMode = toServiceMode(session)
+  const tableId =
+    serviceMode === SERVICE_MODE.DINE_IN ? toTableId(session) : null
   await cart.addToCart(
     {
       product: product.value,
@@ -138,6 +166,7 @@ async function add(openCart = true): Promise<boolean> {
       option_ids: [...optionIds.value],
       quantity: qty.value,
       ...(serviceMode != null ? { service_mode: serviceMode } : {}),
+      ...(tableId != null ? { table_id: tableId } : {}),
     },
     openCart,
   )
@@ -164,7 +193,7 @@ async function buyNow() {
 
       <!-- retail 展柜内容 -->
       <view v-if="isRetail" class="ps__content">
-        <text class="ps__price">¥{{ unit }}</text>
+        <text class="ps__price">¥{{ displayUnitText }}</text>
         <text class="t-label">{{ product.en }}</text>
         <text class="t-title ps__name">{{ product.name }}</text>
         <text v-if="product.scene" class="ps__scene">{{ product.scene }}</text>
@@ -299,16 +328,18 @@ async function buyNow() {
         >
           <view
             class="ps-cta__btn ps-cta__btn--secondary"
+            :class="{ 'is-disabled': !canAddToBag }"
             style="flex:1;width:0;min-width:0;"
-            hover-class="ps-cta__btn--active"
+            :hover-class="canAddToBag ? 'ps-cta__btn--active' : 'none'"
             @click="addRetailToBag"
           >
             <text class="ps-cta__label">{{ cart.writeBusy ? '加入中…' : '加入购物袋' }}</text>
           </view>
           <view
             class="ps-cta__btn ps-cta__btn--primary"
+            :class="{ 'is-disabled': !canAddToBag }"
             style="flex:1;width:0;min-width:0;"
-            hover-class="ps-cta__btn--active-primary"
+            :hover-class="canAddToBag ? 'ps-cta__btn--active-primary' : 'none'"
             @click="buyNow"
           >
             <text class="ps-cta__label ps-cta__label--light">{{ cart.writeBusy ? '加入中…' : '立刻下单' }}</text>
@@ -319,11 +350,12 @@ async function buyNow() {
       <view v-else class="ps-cta ps-cta--drink" style="width:100%;">
         <view
           class="ps-cta__drink-btn"
-          hover-class="ps-cta__drink-btn--active"
+          :class="{ 'is-disabled': !canAddToBag }"
+          :hover-class="canAddToBag ? 'ps-cta__drink-btn--active' : 'none'"
           @click="add()"
         >
           <text class="ps-cta__drink-label">
-            ¥{{ unit * qty }} {{ cart.writeBusy ? '加入中…' : '加入购物袋' }}
+            ¥{{ displayLineText }} {{ cart.writeBusy ? '加入中…' : '加入购物袋' }}
           </text>
         </view>
       </view>
@@ -529,6 +561,15 @@ async function buyNow() {
   justify-content: center;
 }
 
+.ps-cta__drink-btn.is-disabled {
+  background: $mp-stone;
+  pointer-events: none;
+}
+
+.ps-cta__drink-btn.is-disabled .ps-cta__drink-label {
+  color: $mp-text-3;
+}
+
 .ps-cta__drink-btn--active {
   opacity: 0.92;
   transform: scale(0.98);
@@ -634,6 +675,17 @@ async function buyNow() {
 
 .ps-cta__btn--primary {
   background: $mp-moss;
+}
+
+.ps-cta__btn.is-disabled {
+  background: $mp-stone;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.ps-cta__btn.is-disabled .ps-cta__label,
+.ps-cta__btn.is-disabled .ps-cta__label--light {
+  color: $mp-text-3;
 }
 
 .ps-cta__btn--active {

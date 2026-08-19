@@ -1,11 +1,19 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import SoorakChrome from '@/components/soorak-chrome/soorak-chrome.vue'
 import SoorakButton from '@/components/soorak-button/soorak-button.vue'
+import SoorakSheet from '@/components/soorak-sheet/soorak-sheet.vue'
+import SoorakStoreDetailSheet from '@/components/soorak-store-detail-sheet/soorak-store-detail-sheet.vue'
+import { occupyTable, resolveTable } from '@/common/apis/tableApi'
+import { storeStatusLabel } from '@/common/apis/storeApi'
+import type { RitualId } from '@/common/types/catalog'
+import { TABLE_STATUS } from '@/common/types/table'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSessionStore } from '@/stores/session'
-import type { RitualId } from '@/common/types/catalog'
+import { toErrorMessage } from '@/utils/errorMessage'
+
+const DEFAULT_TABLE_TOKEN = 'table-a1'
 
 const covers: Record<RitualId, string> = {
   morning: '/static/images/products/americano.jpg',
@@ -17,6 +25,11 @@ const covers: Record<RitualId, string> = {
 const catalog = useCatalogStore()
 const session = useSessionStore()
 
+const scanBusy = ref(false)
+const scanSheetOpen = ref(false)
+const scanTokenDraft = ref(DEFAULT_TABLE_TOKEN)
+const storeDetailOpen = ref(false)
+
 const featured = computed(() => {
   const tagged = catalog.products.filter((item) => item.recommended || item.tag)
   return (tagged.length ? tagged : catalog.products).slice(0, 4)
@@ -26,6 +39,95 @@ onShow(() => {
   session.hideNativeTabBar()
   void catalog.ensureLoaded()
 })
+
+function openStoreDetail() {
+  if (catalog.currentStoreId == null) {
+    uni.showToast({ title: '请先选择门店', icon: 'none' })
+    return
+  }
+  storeDetailOpen.value = true
+}
+
+/** 到店堂食：未登录先弹协议登录层，成功后再选店。 */
+async function onStartDineIn() {
+  const ok = await session.ensureLogin()
+  if (!ok) return
+  await session.startDineIn()
+}
+
+function closeStoreDetail() {
+  storeDetailOpen.value = false
+}
+
+async function seatAtTable(qrToken: string) {
+  if (scanBusy.value) return
+  const token = qrToken.trim()
+  if (!token) {
+    uni.showToast({ title: '缺少桌码', icon: 'none' })
+    return
+  }
+
+  scanBusy.value = true
+  try {
+    const okLogin = await session.ensureLogin()
+    if (!okLogin) {
+      uni.showToast({ title: '请先登录', icon: 'none' })
+      return
+    }
+
+    const resolved = await resolveTable(token)
+    // mock 联调：允许对「已占用」桌重复入座，避免上次 occupy 后只能落到下一张空闲桌
+    if (
+      resolved.table_status !== TABLE_STATUS.IDLE &&
+      resolved.table_status !== TABLE_STATUS.DINING
+    ) {
+      uni.showToast({ title: '该桌暂不可用', icon: 'none' })
+      return
+    }
+
+    await session.applyResolvedTable(resolved)
+    const tid = session.tableId
+    if (tid == null) {
+      uni.showToast({ title: '入座失败', icon: 'none' })
+      return
+    }
+
+    await occupyTable(tid)
+    scanSheetOpen.value = false
+    uni.showToast({ title: `已入座 · ${resolved.table_name}`, icon: 'none' })
+    session.goMenu()
+  } catch (error) {
+    const message = toErrorMessage(error, '扫码失败')
+    if (message !== 'UNAUTHORIZED') {
+      uni.showToast({ title: message.slice(0, 40), icon: 'none' })
+    }
+  } finally {
+    scanBusy.value = false
+  }
+}
+
+/**
+ * 手输桌码（不用 showModal editable：content 不是输入初值，开发者工具里确认值常不可靠）。
+ * mock 联调用 token 如 table-a1。
+ */
+function startScanTable() {
+  if (scanBusy.value) return
+  scanTokenDraft.value = DEFAULT_TABLE_TOKEN
+  scanSheetOpen.value = true
+}
+
+function confirmScanToken() {
+  const token = scanTokenDraft.value.trim()
+  if (!token) {
+    uni.showToast({ title: '请输入桌码', icon: 'none' })
+    return
+  }
+  void seatAtTable(token)
+}
+
+function onScanDraftInput(event: { detail?: { value?: string } }) {
+  scanTokenDraft.value = String(event.detail?.value ?? '')
+}
 </script>
 
 <template>
@@ -49,17 +151,20 @@ onShow(() => {
           <text class="home-hero__belief">{{ catalog.brand.belief }}</text>
           <view class="home-hero__actions">
             <SoorakButton @click="session.startDineIn()">到店堂食</SoorakButton>
+            <view class="home-scan-btn" hover-class="home-scan-btn--on" @tap="startScanTable">
+              <text>扫桌码</text>
+            </view>
             <SoorakButton variant="secondary" @click="session.startDelivery()">外卖配送</SoorakButton>
           </view>
         </view>
       </view>
 
       <view class="home-store">
-        <view>
+        <view class="home-store__main" @click="openStoreDetail">
           <text class="home-store__name">{{ catalog.brand.store }}</text>
           <text class="home-store__meta">
             {{ catalog.brand.hours }} · {{ catalog.brand.distance }} ·
-            {{ catalog.currentStore?.status === 1 ? '营业中' : '休息中' }}
+            {{ storeStatusLabel(catalog.currentStore) }}
           </text>
         </view>
         <view class="home-store__switch" @click="session.openStorePicker()">切换</view>
@@ -89,7 +194,7 @@ onShow(() => {
       <view class="home-block">
         <view class="home-block__head">
           <text class="t-section">招牌精选</text>
-          <view class="link" @click="session.goTab('/pages/menu/index')">全部</view>
+          <view class="link" @click="session.goMenu()">全部</view>
         </view>
         <scroll-view scroll-x class="mp-product-rail" :show-scrollbar="false">
           <view
@@ -116,6 +221,31 @@ onShow(() => {
         </view>
       </view>
     </view>
+
+    <SoorakStoreDetailSheet
+      :open="storeDetailOpen"
+      :store-id="catalog.currentStoreId"
+      @close="closeStoreDetail"
+    />
+
+    <SoorakSheet :open="scanSheetOpen" title="输入桌码" @close="scanSheetOpen = false">
+      <view class="scan-sheet">
+        <text class="t-caption scan-sheet__hint">mock 联调可用 table-a1 / table-a2</text>
+        <input
+          class="scan-sheet__input"
+          type="text"
+          :value="scanTokenDraft"
+          placeholder="如 table-a1"
+          placeholder-class="scan-sheet__ph"
+          confirm-type="done"
+          @input="onScanDraftInput"
+          @confirm="confirmScanToken"
+        />
+        <SoorakButton block :disabled="scanBusy" @click="confirmScanToken">
+          {{ scanBusy ? '入座中…' : '入座' }}
+        </SoorakButton>
+      </view>
+    </SoorakSheet>
   </SoorakChrome>
 </template>
 
@@ -184,6 +314,25 @@ onShow(() => {
   gap: 16rpx;
 }
 
+.home-scan-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 88rpx;
+  padding: 0 36rpx;
+  border-radius: 8rpx;
+  font-size: 26rpx;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: $mp-paper;
+  box-shadow: inset 0 0 0 1rpx rgba(247, 244, 238, 0.45);
+}
+
+.home-scan-btn--on {
+  opacity: 0.92;
+  transform: scale(0.98);
+}
+
 .home-hero__actions :deep(.mp-btn--secondary) {
   color: $mp-paper;
   box-shadow: inset 0 0 0 1rpx rgba(247, 244, 238, 0.45);
@@ -199,6 +348,11 @@ onShow(() => {
   justify-content: space-between;
   gap: 24rpx;
   box-shadow: 0 2rpx 4rpx rgba(20, 17, 15, 0.04);
+}
+
+.home-store__main {
+  flex: 1;
+  min-width: 0;
 }
 
 .home-store__name {
@@ -354,5 +508,30 @@ onShow(() => {
   font-family: "Songti SC", "Noto Serif SC", serif;
   font-size: 32rpx;
   font-weight: 500;
+}
+
+.scan-sheet {
+  padding: 8rpx 32rpx 40rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.scan-sheet__hint {
+  color: $mp-text-3;
+}
+
+.scan-sheet__input {
+  min-height: 88rpx;
+  padding: 0 24rpx;
+  border-radius: 12rpx;
+  background: $mp-cloud;
+  box-shadow: inset 0 0 0 1rpx $mp-border;
+  font-size: 28rpx;
+  color: $mp-ink;
+}
+
+.scan-sheet__ph {
+  color: $mp-text-3;
 }
 </style>

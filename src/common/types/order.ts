@@ -1,28 +1,31 @@
-/** 文档 DTO：GET /api/mp/orders。order_status / service_mode 为整数，对照见 FIELD-GAP-007 / orderEnums。 */
+/** 文档 DTO：已实现 OrderRes / OrderItemRes / OrderOptionRes（OpenAPI）。 */
 
 export interface CreateOrderReq {
   store_id: number
+  /** 幂等键，防连点双单；8–64 字符 */
+  client_token: string
+  /** 1堂食、2自提、3外卖、4礼品快递 */
   service_mode: number
   from_cart: true
   table_id?: number | null
+  /** 外卖必填；path/body 为 integer */
+  address_id?: number | null
   customer_remark?: string | null
-  /** 预留：顾客券主键；下单时后端重算并核销 */
-  customer_coupon_id?: string | null
-  /** 前端试算应付，供后端对账；差额以服务端为准 */
-  client_payable_amount?: string | null
-  /** @deprecated 使用 customer_coupon_id */
-  coupon_id?: number | null
+  /** 真契约 integer；下单时后端重算并核销 */
+  customer_coupon_id?: number | null
 }
 
+/** 真契约 OrderOptionRes */
 export interface OrderOptionRes {
-  option_id?: number
-  option_name?: string
+  group_name: string
+  option_name: string
+  price_delta: string
 }
 
 export interface OrderItemRes {
-  item_id: number
-  product_id: number
-  sku_id: number | null
+  item_id: string
+  product_id: string
+  sku_id: string | null
   product_name: string
   sku_name: string | null
   quantity: number
@@ -32,12 +35,29 @@ export interface OrderItemRes {
   options?: OrderOptionRes[]
 }
 
+/** 真契约 OrderDeliveryRes（本轮 UI 不展示） */
+export interface OrderDeliveryRes {
+  contact_name: string
+  contact_mobile: string
+  full_address: string
+  delivery_status: number
+  delivery_provider: string
+  distance_km?: string | null
+  delivery_fee: string
+  remark?: string | null
+  courier_name?: string | null
+  tracking_no?: string | null
+  shipped_at?: string | null
+  received_at?: string | null
+}
+
 export interface OrderRes {
-  order_id: number
+  /** 响应为 string；path 参数为 integer，见 toOrderId */
+  order_id: string
   order_no: string
-  store_id: number
+  store_id: string
   store_name: string
-  table_id: number | null
+  table_id: string | null
   table_name: string | null
   service_mode: number
   order_status: number
@@ -45,16 +65,22 @@ export interface OrderRes {
   option_amount: string
   packing_fee?: string
   delivery_fee?: string
-  /** mock / 预留：优惠金额 */
+  /** 真契约：券抵扣金额 */
+  coupon_amount?: string
+  /** 真契约：会员折扣金额 */
+  member_discount_amount?: string
   discount_amount?: string
+  /** mock 回传；真 OrderRes 未必带 */
   customer_coupon_id?: string | null
-  /** @deprecated 使用 customer_coupon_id */
-  coupon_id?: number | null
   payable_amount: string
   paid_amount: string
-  pickup_code: string | null
+  /** 契约 schema 未列；mock 支付后可能回传 */
+  pickup_code?: string | null
   customer_remark: string | null
   created_at: string | null
   appended?: boolean
+  delivery?: OrderDeliveryRes | null
   items?: OrderItemRes[]
+  can_restock?: boolean
+  stock_restored?: boolean
 }

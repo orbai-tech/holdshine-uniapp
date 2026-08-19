@@ -1,4 +1,4 @@
-import { http } from '@/plugin/request'
+﻿import { http } from '@/plugins/request'
 import { brand as brandCopy, products as mockProducts, rituals } from '@/common/mock/catalog'
 import type { CatalogPayload, Product, ProductCategory, RitualId } from '@/common/types/catalog'
 import type { MpMenuProductRes, MpMenuRes } from '@/common/types/menu'
@@ -6,7 +6,7 @@ import { parseAmount } from '@/utils/money'
 import { resolveMediaUrl } from '@/utils/mediaUrl'
 
 export function getStoreMenu(storeId: number) {
-  return http.get<MpMenuRes>(`/api/mp/stores/${storeId}/menu`)
+  return http.get<MpMenuRes>(`/api/mp/customer/stores/${storeId}/menu`)
 }
 
 function catFromCategoryName(name: string): ProductCategory {

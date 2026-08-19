@@ -67,8 +67,47 @@ export interface MyCouponRes {
   discount_amount?: string
 }
 
+/** 契约：1未使用、2锁定、3已使用、4已过期、5已作废 */
+export const COUPON_STATUS = {
+  UNUSED: 1,
+  LOCKED: 2,
+  USED: 3,
+  EXPIRED: 4,
+  VOIDED: 5,
+} as const
+
+export type CouponStatusCode = (typeof COUPON_STATUS)[keyof typeof COUPON_STATUS]
+
+/** GET /coupons/mine/{id} */
+export interface MyCouponDetailRes {
+  customer_coupon_id: string
+  coupon_no: string
+  coupon_status: number
+  coupon_status_label: string
+  valid_start_at: string
+  valid_end_at: string
+  used_at?: string | null
+  template: CouponTemplateBriefRes
+  locked_order_id?: string | null
+  used_order_id?: string | null
+  void_reason?: string | null
+}
+
+export interface MyCouponCounts {
+  unused: number
+  used: number
+  expired: number
+  total: number
+}
+
 export interface MyCouponListRes {
   list: MyCouponRes[]
+  counts?: MyCouponCounts
+}
+
+export interface MyCouponListResult {
+  list: MyCouponRes[]
+  counts?: MyCouponCounts
 }
 
 /** @deprecated 契约已删；保留类型以免旧脚本报错 */
@@ -104,4 +143,31 @@ export interface CouponRedeemRes {
   customer_coupon_id: string
   discount_amount: string
   message?: string
+}
+
+/** GET /api/mp/customer/coupons/usable */
+export interface UsableCouponRes {
+  customer_coupon_id: string
+  coupon_no: string
+  coupon_status: number
+  coupon_status_label: string
+  valid_start_at: string
+  valid_end_at: string
+  used_at?: string | null
+  template: CouponTemplateBriefRes
+  estimated_discount: string
+  usable?: boolean
+  unusable_reason?: string | null
+}
+
+export interface UsableCouponListRes {
+  list: UsableCouponRes[]
+  goods_amount?: string
+}
+
+export interface ListUsableCouponsQuery {
+  store_id: number
+  goods_amount: number | string
+  /** 1堂食、2自提、3外卖；默认 1 */
+  service_mode?: number
 }

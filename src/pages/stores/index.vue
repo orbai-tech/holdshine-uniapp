@@ -4,6 +4,7 @@ import { onHide, onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import SoorakChrome from '@/components/soorak-chrome/soorak-chrome.vue'
 import SoorakButton from '@/components/soorak-button/soorak-button.vue'
 import SoorakStoreCard from '@/components/soorak-store-card/soorak-store-card.vue'
+import SoorakStoreDetailSheet from '@/components/soorak-store-detail-sheet/soorak-store-detail-sheet.vue'
 import {
   listMpStores,
   listStoresByAddress,
@@ -15,7 +16,7 @@ import type { StoreRes } from '@/common/types/store'
 import { useCartStore } from '@/stores/cart'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSessionStore } from '@/stores/session'
-import { getUserLocation, type GeoPoint } from '@/utils/geo'
+import { ensureLocationPermission, getUserLocation, type GeoPoint } from '@/utils/geo'
 import { toErrorMessage } from '@/utils/errorMessage'
 
 type ListTab = 'all' | 'recent'
@@ -38,6 +39,8 @@ const city = ref(ALL_CITY)
 const here = ref<GeoPoint | null>(null)
 const stores = ref<StoreRes[]>([])
 const recentIds = ref<string[]>(readRecentIds())
+const detailOpen = ref(false)
+const detailStoreId = ref<number | null>(null)
 
 const cities = computed(() => {
   const set = new Set<string>()
@@ -139,6 +142,9 @@ async function loadStores() {
       }
     } else {
       here.value = await getUserLocation()
+      if (!here.value) {
+        uni.showToast({ title: '未开启定位，按默认排序', icon: 'none' })
+      }
       const page = await listMpStores({
         page: 1,
         page_size: 100,
@@ -182,11 +188,16 @@ async function onRelocate() {
     uni.showToast({ title: '外卖按收货地址推荐', icon: 'none' })
     return
   }
+  const allowed = await ensureLocationPermission()
+  if (!allowed) {
+    uni.showToast({ title: '没有权限', icon: 'none' })
+    return
+  }
   uni.showLoading({ title: '定位中', mask: true })
   try {
-    here.value = await getUserLocation()
+    here.value = await getUserLocation({ force: true })
     if (!here.value) {
-      uni.showToast({ title: '定位未开启', icon: 'none' })
+      uni.showToast({ title: '定位失败', icon: 'none' })
       return
     }
     uni.showToast({ title: '已更新距离', icon: 'none' })
@@ -209,17 +220,36 @@ async function onSelect(store: StoreRes) {
     }
     uni.showToast({ title: same ? '已是当前门店' : '已切换门店', icon: 'none' })
     setTimeout(() => {
-      if (pickerMode.value) {
-        session.goTab('/pages/menu/index')
+      if (!pickerMode.value) {
+        uni.navigateBack({ fail() {} })
         return
       }
-      uni.navigateBack({ fail() {} })
+      const pages = getCurrentPages()
+      const prev = pages[pages.length - 2] as { route?: string } | undefined
+      if (prev?.route === 'pages/menu/index') {
+        uni.navigateBack({ fail() {} })
+        return
+      }
+      session.goMenu({ replace: true })
     }, 280)
   } catch (error) {
     uni.showToast({ title: toErrorMessage(error, '切换失败').slice(0, 40), icon: 'none' })
   } finally {
     selecting.value = false
   }
+}
+
+function openStoreDetail(store: StoreRes) {
+  try {
+    detailStoreId.value = storeIdOf(store)
+    detailOpen.value = true
+  } catch {
+    uni.showToast({ title: '门店编号无效', icon: 'none' })
+  }
+}
+
+function closeStoreDetail() {
+  detailOpen.value = false
 }
 
 onShow(() => {
@@ -276,7 +306,7 @@ onUnload(() => {
       </view>
       <view v-else-if="errorText" class="mp-empty">
         <text class="t-caption">{{ errorText }}</text>
-        <SoorakButton v-if="pickerMode === 'delivery' && !session.deliveryAddress" @click="session.openAddressEditor()">
+        <SoorakButton v-if="pickerMode === 'delivery' && !session.deliveryAddress" @click="session.openAddressBook()">
           去填写地址
         </SoorakButton>
         <SoorakButton v-else @click="loadStores">重试</SoorakButton>
@@ -294,9 +324,16 @@ onUnload(() => {
           :distance="distanceOf(item)"
           :selected="item.store_id === currentId"
           @select="onSelect(item)"
+          @detail="openStoreDetail(item)"
         />
       </view>
     </view>
+
+    <SoorakStoreDetailSheet
+      :open="detailOpen"
+      :store-id="detailStoreId"
+      @close="closeStoreDetail"
+    />
   </SoorakChrome>
 </template>
 

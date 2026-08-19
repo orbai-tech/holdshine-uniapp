@@ -25,7 +25,15 @@
       "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
     },
     {
+      "path": "pages/points/index",
+      "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
+    },
+    {
       "path": "pages/stores/index",
+      "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
+    },
+    {
+      "path": "pages/address/index",
       "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
     },
     {
@@ -34,6 +42,18 @@
     },
     {
       "path": "pages/checkout/index",
+      "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
+    },
+    {
+      "path": "pages/legal/terms",
+      "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
+    },
+    {
+      "path": "pages/legal/privacy",
+      "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
+    },
+    {
+      "path": "pages/login/index",
       "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
     }
   ],
@@ -53,12 +73,6 @@
       {
         "pagePath": "pages/home/index",
         "text": "首页",
-        "iconPath": "static/tab/dot-off.png",
-        "selectedIconPath": "static/tab/dot-on.png"
-      },
-      {
-        "pagePath": "pages/menu/index",
-        "text": "点单",
         "iconPath": "static/tab/dot-off.png",
         "selectedIconPath": "static/tab/dot-on.png"
       },
@@ -86,7 +100,6 @@
     "current": 0,
     "list": [
       { "name": "首页", "path": "pages/home/index" },
-      { "name": "点单", "path": "pages/menu/index" },
       { "name": "订单", "path": "pages/orders/index" },
       { "name": "选物", "path": "pages/select/index" },
       { "name": "我的", "path": "pages/mine/index" }

@@ -1,5 +1,5 @@
 /**
- * 顾客端地址簿 DTO（已实现 `/api/mp/addresses`）。
+ * 顾客端地址簿 DTO（已实现 `/api/mp/customer/addresses`）。
  * 对齐 AddressUpsertReq / AddressRes；禁止混入规划 member/addresses 字段。
  */
 
