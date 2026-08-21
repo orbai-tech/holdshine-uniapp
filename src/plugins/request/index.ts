@@ -15,6 +15,8 @@ if (!/^https?:\/\//.test(baseURL)) {
   baseURL = 'http://127.0.0.1:3780'
 }
 // #endif
+
+export { baseURL }
 const timeout = Number(import.meta.env.VITE_API_TIMEOUT) || 10_000
 
 /**

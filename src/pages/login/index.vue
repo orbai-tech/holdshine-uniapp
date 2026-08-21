@@ -2,7 +2,12 @@
 import { computed, ref } from 'vue'
 import { onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import { storeToRefs } from 'pinia'
-import { listLegalDocuments, pickLegalVersions } from '@/common/apis/legalApi'
+import {
+  listAllLegalDocuments,
+  listLegalDocuments,
+  pickLegalCurrentVersions,
+  pickLegalVersions,
+} from '@/common/apis/legalApi'
 import type { LegalDocVersions } from '@/common/types/legal'
 import { useSessionStore } from '@/stores/session'
 import { toErrorMessage } from '@/utils/errorMessage'
@@ -38,11 +43,35 @@ onUnload(() => {
   session.resolveLoginRequest(false)
 })
 
+/**
+ * 登录前主动拉协议版本号：
+ * 1. 先打超管侧 `/api/web/super-admin/legal/documents` 拿当前生效版。
+ *    该接口返回的是**全部历史版本**，必须再用 is_current=true 过滤，
+ *    否则传旧版本号会被后端 41000 「隐私协议已更新」拦截。
+ * 2. 超管侧失败（401/403/网络等）时，兜底用 mp 公开清单 `listLegalDocuments`。
+ *    mp 清单没有 is_current 字段，默认就是当前版。
+ */
 async function loadVersions() {
   versionsBusy.value = true
   try {
-    const list = await listLegalDocuments()
-    versions.value = pickLegalVersions(list)
+    let next: LegalDocVersions | null = null
+    try {
+      const adminList = await listAllLegalDocuments()
+      next = pickLegalCurrentVersions(adminList)
+      if (!next) {
+        // 超管侧清单存在但没有 is_current=true（异常数据），兜底 mp
+        const mpList = await listLegalDocuments()
+        next = pickLegalVersions(mpList)
+      }
+    } catch (adminError) {
+      console.warn(
+        '[元-登录] 超管侧协议清单加载失败，回退 mp 公开清单',
+        toErrorMessage(adminError, ''),
+      )
+      const mpList = await listLegalDocuments()
+      next = pickLegalVersions(mpList)
+    }
+    versions.value = next
     if (!versions.value) {
       uni.showToast({ title: '协议版本加载失败', icon: 'none' })
     }

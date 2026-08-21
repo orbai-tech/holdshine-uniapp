@@ -191,6 +191,43 @@ function distanceKm(from, to) {
   return earth * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
+/** 内存生成一个最小合法 PDF，供 /uploads/legal/* 静态资源返回，验收小程序 openDocument。
+ *  注意：内容流与标题必须用 ASCII（PDF 偏移按字节计，中文 UTF-8 会破坏 xref 偏移计算）。 */
+function buildMockPdf(title = 'Yuanqi Mock PDF') {
+  const streamData = `BT /F1 18 Tf 72 770 Td (${title}) Tj ET`
+  const objs = [
+    '1 0 obj',
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    'endobj',
+    '2 0 obj',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    'endobj',
+    '3 0 obj',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    'endobj',
+    '4 0 obj',
+    `<< /Length ${Buffer.byteLength(streamData)} >>`,
+    'stream',
+    streamData,
+    'endstream',
+    'endobj',
+    '5 0 obj',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    'endobj',
+  ]
+  const body = '%PDF-1.4\n' + objs.join('\n') + '\n'
+  const offsets = [0]
+  for (let i = 1; i <= 5; i++) offsets.push(body.indexOf(`${i} 0 obj`))
+  const entries = ['0000000000 65535 f ']
+  for (let i = 1; i <= 5; i++) {
+    entries.push(`${String(offsets[i]).padStart(10, '0')} 00000 n `)
+  }
+  const xrefPos = body.length
+  const tail =
+    `xref\n0 6\n${entries.join('\n')}\ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefPos}\n%%EOF\n`
+  return Buffer.concat([Buffer.from(body, 'utf8'), Buffer.from(tail, 'utf8')])
+}
+
 /** admin fixture → MpStoreRes；有顾客坐标时填 distance_km。 */
 function toMpStore(store, point) {
   const lat = store.latitude != null ? Number(store.latitude) : null
@@ -229,6 +266,20 @@ async function handle(req, res) {
 
   if (req.method === 'OPTIONS') {
     json(res, 204, { code: 0, message: 'ok', data: null })
+    return
+  }
+
+  // 协议 PDF 静态资源（与真后端 /uploads/legal/* 路径一致，供下载/预览验收）
+  if (req.method === 'GET' && path.startsWith('/uploads/legal/')) {
+    const pdf = buildMockPdf(
+      path.includes('privacy_policy') ? 'Yuanqi Privacy Policy (Mock)' : 'Yuanqi User Handbook (Mock)',
+    )
+    res.writeHead(200, {
+      'Content-Type': 'application/pdf',
+      'Content-Length': pdf.length,
+      'Access-Control-Allow-Origin': '*',
+    })
+    res.end(pdf)
     return
   }
 
