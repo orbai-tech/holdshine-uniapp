@@ -19,7 +19,8 @@ import { parseAmount } from '@/utils/money'
 
 const props = defineProps<{
   open: boolean
-  storeId: number | null
+  /** 后端 18 位雪花大整数原值（字符串），全程透传以避免 Number() 精度丢失。 */
+  storeId: string | null
 }>()
 
 const emit = defineEmits<{
@@ -57,7 +58,7 @@ watch(
   },
 )
 
-async function loadDetail(storeId: number) {
+async function loadDetail(storeId: string | number) {
   loading.value = true
   errorText.value = ''
   detail.value = null

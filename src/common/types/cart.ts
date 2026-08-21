@@ -1,31 +1,41 @@
 /** 文档 DTO：购物车已实现接口 */
 
 export interface CartAddReq {
-  store_id: number
-  product_id: number
-  sku_id?: number | null
-  option_ids?: number[]
+  /** 真契约 string；后端 18 位雪花大整数，禁止前端走 Number() */
+  store_id: string
+  /** 真契约 string；18 位雪花大整数 */
+  product_id: string
+  /** 真契约 string；18 位雪花大整数 */
+  sku_id?: string | null
+  option_ids?: string[]
   quantity?: number
-  table_id?: number | null
+  /** 真契约 string；未选桌台传 null，避免把本地假 id 发到真后端 */
+  table_id?: string | null
   service_mode?: number
 }
 
 export interface CartQuoteReq {
-  store_id: number
-  product_id: number
-  sku_id?: number | null
-  option_ids?: number[]
+  /** 真契约 string；前端禁止 Number()，避免大整数精度丢失 */
+  store_id: string
+  /** 真契约 string；18 位雪花大整数 */
+  product_id: string
+  /** 真契约 string；18 位雪花大整数 */
+  sku_id?: string | null
+  option_ids?: string[]
   quantity?: number
 }
 
 export interface CartOptionRes {
-  option_id?: number
+  /** 真契约 string；18 位雪花大整数 */
+  option_id?: string
   option_name?: string
 }
 
 export interface CartQuoteRes {
-  product_id: number
-  sku_id: number
+  /** 真契约 string；18 位雪花大整数 */
+  product_id: string
+  /** 真契约 string；18 位雪花大整数 */
+  sku_id: string
   sku_name: string | null
   quantity: number
   unit_price: string
@@ -39,14 +49,18 @@ export interface CartUpdateQtyReq {
 }
 
 export interface CartClearReq {
-  store_id: number
+  /** 真契约 string；前端禁止 Number()，避免大整数精度丢失 */
+  store_id: string
   service_mode?: number
 }
 
 export interface CartItemRes {
-  item_id: number
-  product_id: number
-  sku_id: number | null
+  /** 真契约 string；18 位雪花大整数 */
+  item_id: string
+  /** 真契约 string；18 位雪花大整数 */
+  product_id: string
+  /** 真契约 string；18 位雪花大整数 */
+  sku_id: string | null
   product_name: string
   sku_name: string | null
   quantity: number
@@ -57,10 +71,13 @@ export interface CartItemRes {
 }
 
 export interface CartRes {
-  cart_id: number
-  store_id: number
+  /** 真契约 string；18 位雪花大整数 */
+  cart_id: string
+  /** 真契约 string；真后端返回 18 位雪花大整数 */
+  store_id: string
   store_name: string
-  table_id: number | null
+  /** 真契约 string；18 位雪花桌台 id（string 透传） */
+  table_id: string | null
   table_status: number | null
   can_append?: boolean
   service_mode: number

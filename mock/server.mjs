@@ -819,8 +819,8 @@ async function handle(req, res) {
     if (!session) return
     try {
       const body = await readBody(req)
-      const storeId = Number(body.store_id)
-      if (!Number.isInteger(storeId) || storeId <= 0) {
+      const storeId = String(body.store_id ?? '')
+      if (!/^\d+$/.test(storeId) || storeId === '0') {
         json(res, 200, { code: 40000, message: '缺少 store_id', data: null })
         return
       }
@@ -925,7 +925,7 @@ async function handle(req, res) {
     if (!session) return
     try {
       const body = await readBody(req)
-      ok(res, prepay(session.user.openid, body.order_id))
+      ok(res, prepay(session.user.openid, body.order_id, body.client_token))
     } catch (error) {
       json(res, 200, { code: error.code || 40000, message: error.message, data: null })
     }
@@ -937,7 +937,7 @@ async function handle(req, res) {
     if (!session) return
     try {
       const body = await readBody(req)
-      const result = mockPaid(session.user.openid, body.order_id)
+      const result = mockPaid(session.user.openid, body.order_id, body.client_token)
       applyMemberPaid(session.user.openid, body.order_id)
       ok(res, result)
     } catch (error) {

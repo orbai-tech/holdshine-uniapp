@@ -1,18 +1,20 @@
 /** 文档 DTO：已实现 OrderRes / OrderItemRes / OrderOptionRes（OpenAPI）。 */
 
 export interface CreateOrderReq {
-  store_id: number
+  /** 真契约 string；前端禁止 Number()，避免 18 位大整数精度丢失 */
+  store_id: string
   /** 幂等键，防连点双单；8–64 字符 */
   client_token: string
   /** 1堂食、2自提、3外卖、4礼品快递 */
   service_mode: number
   from_cart: true
-  table_id?: number | null
-  /** 外卖必填；path/body 为 integer */
-  address_id?: number | null
+  /** 真契约 string；未选桌台不传，避免本地假 id 触发"桌台不存在" */
+  table_id?: string | null
+  /** 外卖必填；真契约 string，18 位雪花大整数 */
+  address_id?: string | null
   customer_remark?: string | null
-  /** 真契约 integer；下单时后端重算并核销 */
-  customer_coupon_id?: number | null
+  /** 真契约 string；18 位雪花大整数，下单时后端重算并核销 */
+  customer_coupon_id?: string | null
 }
 
 /** 真契约 OrderOptionRes */

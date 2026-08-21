@@ -40,7 +40,8 @@ const here = ref<GeoPoint | null>(null)
 const stores = ref<StoreRes[]>([])
 const recentIds = ref<string[]>(readRecentIds())
 const detailOpen = ref(false)
-const detailStoreId = ref<number | null>(null)
+/** 后端大整数原值（字符串），避免 Number() 精度丢失。 */
+const detailStoreId = ref<string | null>(null)
 
 const cities = computed(() => {
   const set = new Set<string>()

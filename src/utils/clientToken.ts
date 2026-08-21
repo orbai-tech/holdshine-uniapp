@@ -60,3 +60,5 @@ export function isRetriableNetworkError(error: unknown): boolean {
 
 export const orderCheckoutIntent = createWriteIntent('order_checkout')
 export const memberSubscribeIntent = createWriteIntent('member_subscribe')
+/** 支付意图：同一次支付提交（同订单 5 分钟内）复用同一 client_token，防连点重复提交 */
+export const paymentIntent = createWriteIntent('payment')

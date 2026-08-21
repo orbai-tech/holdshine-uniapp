@@ -16,15 +16,17 @@ export function listMpStores(query: MpStoreListQuery = {}) {
     page: query.page ?? 1,
     page_size: query.page_size ?? 100,
   }
+
   if (query.keyword) data.keyword = query.keyword
   if (query.latitude != null) data.latitude = query.latitude
   if (query.longitude != null) data.longitude = query.longitude
   return http.get<PageResult<StoreRes>>('/api/mp/customer/stores', data)
 }
 
-/** 门店详情：GET /api/mp/customer/stores/{store_id} */
-export function getStoreDetail(storeId: number) {
-  return http.get<MpStoreDetailRes>(`/api/mp/customer/stores/${storeId}`, undefined, { showError: false })
+/** 门店详情：GET /api/mp/customer/stores/{store_id}。store_id 透传字符串，避免大整数精度丢失。 */
+export function getStoreDetail(storeId: string | number) {
+  const id = String(storeId)
+  return http.get<MpStoreDetailRes>(`/api/mp/customer/stores/${id}`, undefined, { showError: false })
 }
 
 /**
@@ -84,7 +86,8 @@ export function storeDistanceLabel(store: StoreRes, point: GeoPoint | null): str
   return `${km.toFixed(1)}km`
 }
 
-export function storeIdOf(store: StoreRes): number {
+/** 提取门店 store_id。真契约 MpStoreRes.store_id 是 string，真后端 18 位雪花大整数超过 JS 安全整数，统一按 string 透传。 */
+export function storeIdOf(store: StoreRes): string {
   return toStoreId(store.store_id)
 }
 

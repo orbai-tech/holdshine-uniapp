@@ -53,7 +53,8 @@ function readStoredAddress(): DeliveryAddress | null {
 
 export const useSessionStore = defineStore('session', () => {
   const ritualFilter = ref<RitualId | null>(null)
-  const categoryId = ref<number | null>(null)
+  /** 菜单分类 id：18 位雪花大整数，string 透传 */
+  const categoryId = ref<string | null>(null)
   const productId = ref<string | null>(null)
   const cartOpen = ref(false)
   const loginSheetMode = ref<'login' | 'reconsent'>('login')
@@ -66,13 +67,18 @@ export const useSessionStore = defineStore('session', () => {
   const fulfillmentMode = ref<FulfillmentMode | null>(null)
   const pickupSubMode = ref<PickupSubMode>('dine_in')
   const tableCode = ref<string | null>(null)
-  const tableId = ref<number | null>(null)
+  /**
+   * 真后端桌台 id 为 18 位雪花大整数（与 store_id 同样的精度问题）；
+   * 前端全程按 string 透传，禁止进入 Number()，避免精度丢失。
+   * null 表示"未选桌台"——商品加购允许 table_id=null，下单时由确认单强制选真实桌台。
+   */
+  const tableId = ref<string | null>(null)
   const tableName = ref<string | null>(null)
   /** 是否由扫桌码 resolve 写入（确认单只读，不打开选桌 Sheet） */
   const tableFromScan = ref(false)
   /** 切到「打包」时暂存堂食桌台，切回店内就餐可恢复 */
   const stashedDineTable = ref<{
-    tableId: number | null
+    tableId: string | null
     tableCode: string | null
     tableName: string | null
     tableFromScan: boolean
@@ -388,7 +394,7 @@ export const useSessionStore = defineStore('session', () => {
     ritualFilter.value = id
   }
 
-  function setCategoryId(id: number | null) {
+  function setCategoryId(id: string | null) {
     categoryId.value = id
   }
 
@@ -515,76 +521,76 @@ export const useSessionStore = defineStore('session', () => {
     pickupSubMode.value = mode
   }
 
-  const FALLBACK_TABLE_ID: Record<TableCode, number> = {
-    A1: 1,
-    A2: 2,
-    A3: 3,
-  }
+  // 真后端桌台是 18 位雪花大整数 id（与 store_id 同精度问题），全程按 string 透传。
+// 删除本地假桌码 id 映射——A1/A2/A3 只是占位展示，不再写入 tableId，避免真后端报"桌台不存在"。
 
-  /** 本地假桌码（兼容旧入口）；确认单已改走 applyAvailableTable */
-  function setTableCode(code: TableCode | null) {
-    tableCode.value = code
-    tableId.value = code ? FALLBACK_TABLE_ID[code] : null
-    tableName.value = code
-    tableFromScan.value = false
-    fulfillmentMode.value = 'dine_in'
-    pickupSubMode.value = 'dine_in'
-  }
+/**
+ * 本地占位桌码（A1/A2/A3）。仅展示用，不再用于组装请求体的桌台 id。
+ * 未选真实桌台时 tableId=null（加购不强制关联，下单时由确认单卡口）。
+ */
+function setTableCode(code: TableCode | null) {
+  tableCode.value = code
+  tableId.value = null
+  tableName.value = code
+  tableFromScan.value = false
+  fulfillmentMode.value = 'dine_in'
+  pickupSubMode.value = 'dine_in'
+}
 
-  /** 确认单选桌：写入契约返回的真实 table_id */
-  function applyAvailableTable(table: {
-    table_id: string | number
-    table_code: string
-    table_name: string
-  } | null) {
-    fulfillmentMode.value = 'dine_in'
-    pickupSubMode.value = 'dine_in'
-    stashedDineTable.value = null
-    if (!table) {
-      clearTable()
-      return
-    }
-    const tid = Number(table.table_id)
-    if (!Number.isInteger(tid) || tid <= 0) {
-      throw new Error('桌台编号无效')
-    }
-    tableId.value = tid
-    tableCode.value = (table.table_code || null) as TableCode | null
-    tableName.value = table.table_name || table.table_code || null
-    tableFromScan.value = false
+/** 确认单选桌：写入契约返回的真实 table_id（string 透传，避免大整数精度丢失）。 */
+function applyAvailableTable(table: {
+  table_id: string | number
+  table_code: string
+  table_name: string
+} | null) {
+  fulfillmentMode.value = 'dine_in'
+  pickupSubMode.value = 'dine_in'
+  stashedDineTable.value = null
+  if (!table) {
+    clearTable()
+    return
   }
+  const tid = String(table.table_id ?? '').trim()
+  if (!/^\d+$/.test(tid)) {
+    throw new Error('桌台编号无效')
+  }
+  tableId.value = tid
+  tableCode.value = (table.table_code || null) as TableCode | null
+  tableName.value = table.table_name || table.table_code || null
+  tableFromScan.value = false
+}
 
-  /**
-   * 扫桌码 resolve 成功后：切店 + 堂食 + 真实桌台。
-   * 调用方负责随后 occupy。
-   */
-  async function applyResolvedTable(res: {
-    store_id: string
-    table_id: string
-    table_code: string
-    table_name: string
-  }) {
-    // 勿用 await import()：mp-weixin 会编译成 await "./catalog.js" 字符串，导致 useCatalogStore 非函数
-    const catalog = useCatalogStore()
-    const storeId = toStoreId(res.store_id)
-    const tid = Number(res.table_id)
-    if (!Number.isInteger(tid) || tid <= 0) {
-      throw new Error('桌台编号无效')
-    }
-    const page = await listMpStores({ page: 1, page_size: 100 })
-    const store = (page.list ?? []).find((item) => storeIdOf(item) === storeId)
-    if (!store) {
-      throw new Error('桌码对应门店不可用')
-    }
-    await catalog.selectStore(store)
-    fulfillmentMode.value = 'dine_in'
-    pickupSubMode.value = 'dine_in'
-    stashedDineTable.value = null
-    tableId.value = tid
-    tableCode.value = res.table_code
-    tableName.value = res.table_name
-    tableFromScan.value = true
+/**
+ * 扫桌码 resolve 成功后：切店 + 堂食 + 真实桌台。
+ * 调用方负责随后 occupy。table_id 透传 string（真后端 18 位大整数，禁走 Number()）。
+ */
+async function applyResolvedTable(res: {
+  store_id: string
+  table_id: string
+  table_code: string
+  table_name: string
+}) {
+  // 勿用 await import()：mp-weixin 会编译成 await "./catalog.js" 字符串，导致 useCatalogStore 非函数
+  const catalog = useCatalogStore()
+  const storeId = toStoreId(res.store_id)
+  const tid = String(res.table_id ?? '').trim()
+  if (!/^\d+$/.test(tid)) {
+    throw new Error('桌台编号无效')
   }
+  const page = await listMpStores({ page: 1, page_size: 100 })
+  const store = (page.list ?? []).find((item) => storeIdOf(item) === storeId)
+  if (!store) {
+    throw new Error('桌码对应门店不可用')
+  }
+  await catalog.selectStore(store)
+  fulfillmentMode.value = 'dine_in'
+  pickupSubMode.value = 'dine_in'
+  stashedDineTable.value = null
+  tableId.value = tid
+  tableCode.value = res.table_code
+  tableName.value = res.table_name
+  tableFromScan.value = true
+}
 
   function saveDeliveryAddress(next: DeliveryAddress) {
     deliveryAddress.value = next

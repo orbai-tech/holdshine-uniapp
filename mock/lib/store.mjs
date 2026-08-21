@@ -13,7 +13,8 @@ export function upsertUser({ openid, nickname, memberNo }) {
   const existing = users.get(openid)
   const name = nickname || existing?.nickname || '陈先生'
   const next = {
-    uid: existing?.uid || nextUid++,
+    // uid 真契约 string（雪花大整数）；mock 用自增数值字符串化
+    uid: existing?.uid || String(nextUid++),
     openid,
     nickname: name,
     memberNo: memberNo || existing?.memberNo || '8800 1266',
@@ -52,7 +53,8 @@ export function toMpUserinfo(user) {
     avatar_path: user.avatar_path ?? null,
     status: 1,
     member_no: user.memberNo,
-    member_level_id: 1,
+    // member_level_id 真契约 string
+    member_level_id: '1',
     last_login_at: null,
     need_reconsent: userNeedsReconsent(user),
   }

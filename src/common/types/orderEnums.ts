@@ -35,12 +35,6 @@ export const ORDER_STATUS = {
 
 export type OrderStatusCode = (typeof ORDER_STATUS)[keyof typeof ORDER_STATUS]
 
-const TABLE_ID_BY_CODE: Record<TableCode, number> = {
-  A1: 1,
-  A2: 2,
-  A3: 3,
-}
-
 const ORDER_STATUS_LABELS: Record<number, string> = {
   [ORDER_STATUS.UNPAID]: '待支付',
   [ORDER_STATUS.PENDING_ACCEPT]: '待接单',
@@ -71,21 +65,25 @@ export function toServiceMode(session: {
 }
 
 /**
- * 解析下单/加购用的 table_id。
- * 优先 session.tableId（扫码 resolve）；否则 A1–A3 本地回落（DEV-015）。
+ * 解析下单/加购用的 table_id（字符串真契约）。
+ *
+ * 真后端 table_id 是 18 位雪花大整数，超过 JS Number 安全精度。
+ * 前端全程按 string 透传，不进入 Number()，以免精度丢失。
+ *
+ * 规则：
+ * - 仅当 session.tableId 是合法数字字符串时返回；其余情形返回 null。
+ * - 商品加购不强制关联桌台：未选桌台（null）也允许加入购物袋。
+ * - 下单时由确认单卡口：service_mode=堂食 必须先选真实桌台，否则 createOrder 报错拦截。
  */
 export function toTableId(session: {
-  tableId?: number | null
+  tableId?: string | number | null
   tableCode?: string | null
-}): number | null {
-  const id = session.tableId
-  if (id != null && Number.isInteger(id) && id > 0) return id
-  const code = session.tableCode
-  if (code == null || code === '') return null
-  if (code === 'A1' || code === 'A2' || code === 'A3') {
-    return TABLE_ID_BY_CODE[code]
-  }
-  return null
+}): string | null {
+  const raw = session.tableId
+  if (raw == null) return null
+  const s = String(raw).trim()
+  if (!/^\d+$/.test(s)) return null
+  return s
 }
 
 export function serviceModeLabel(mode: number): string {

@@ -53,7 +53,8 @@ export const MEMBER_PAY_STATUS = {
 
 /** 文档 DTO：POST /api/mp/customer/member/subscribe */
 export interface MemberSubscribeReq {
-  target_level_id: number
+  /** 真契约 string；18 位雪花大整数 */
+  target_level_id: string
   client_token: string
 }
 

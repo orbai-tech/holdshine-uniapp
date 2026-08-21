@@ -29,13 +29,16 @@ export interface CouponTemplateListRes {
 }
 
 export interface CouponClaimReq {
-  coupon_template_id: number
-  store_id?: number | null
+  /** 真契约 string；18 位雪花大整数，前端禁止 Number() */
+  coupon_template_id: string
+  /** 真契约 string；真后端是 18 位雪花大整数 */
+  store_id?: string | null
 }
 
 /** 嵌套在 MyCouponRes.template；字段子集，兼容 Brief */
 export interface CouponTemplateRes {
-  coupon_template_id?: number | string
+  /** 真契约 string；18 位雪花大整数 */
+  coupon_template_id?: string
   coupon_name?: string
   coupon_type?: number | string
   /** 满减金额 */
@@ -112,30 +115,33 @@ export interface MyCouponListResult {
 
 /** @deprecated 契约已删；保留类型以免旧脚本报错 */
 export interface CheckoutPreviewReq {
-  store_id: number
+  /** 真契约 string；真后端是 18 位雪花大整数 */
+  store_id: string
   customer_coupon_id?: string | null
   /** @deprecated 使用 customer_coupon_id */
-  coupon_id?: number | null
+  coupon_id?: string | null
 }
 
 /** @deprecated 契约已删 */
 export interface CheckoutPreviewRes {
-  store_id: number
+  store_id: string
   item_count: number
   product_amount: string
   option_amount: string
   discount_amount: string
   payable_amount: string
   customer_coupon_id?: string | null
-  coupon_id?: number | null
+  coupon_id?: string | null
   coupons?: MyCouponRes[]
 }
 
 /** 预留：顾客端核销（正式链路由下单自动核销；mock 可单独调） */
 export interface CouponRedeemReq {
   customer_coupon_id: string
-  store_id?: number
-  order_id?: number | null
+  /** 真契约 string；前端禁止 Number() */
+  store_id?: string
+  /** 真契约 string；18 位雪花大整数 */
+  order_id?: string | null
 }
 
 export interface CouponRedeemRes {
@@ -166,7 +172,8 @@ export interface UsableCouponListRes {
 }
 
 export interface ListUsableCouponsQuery {
-  store_id: number
+  /** 真契约 string；真后端是 18 位雪花大整数，禁走 Number() */
+  store_id: string
   goods_amount: number | string
   /** 1堂食、2自提、3外卖；默认 1 */
   service_mode?: number

@@ -333,16 +333,17 @@ try {
   assert.equal(goldReplay.json.data.order_id, goldSub.json.data.order_id)
 
   const goldOrderId = Number(goldSub.json.data.order_id)
+  const goldPayToken = smokeClientToken('member_gold_pay')
   const goldPrepay = await request('/api/mp/customer/payments/prepay', {
     method: 'POST',
     token: mpToken,
-    body: { order_id: goldOrderId },
+    body: { order_id: goldOrderId, client_token: goldPayToken },
   })
   assert.equal(goldPrepay.json.code, 0)
   const goldPaid = await request('/api/mp/customer/payments/mock-paid', {
     method: 'POST',
     token: mpToken,
-    body: { order_id: goldOrderId },
+    body: { order_id: goldOrderId, client_token: goldPayToken },
   })
   assert.equal(goldPaid.json.code, 0)
 
@@ -357,7 +358,7 @@ try {
     body: { store_id: 1, product_id: 1, sku_id: 11, option_ids: [101, 111], quantity: 1 },
   })
   assert.equal(quoted.json.code, 0)
-  assert.equal(quoted.json.data.sku_id, 11)
+  assert.equal(quoted.json.data.sku_id, '11')
   assert.ok(Number(quoted.json.data.unit_price) > 0)
   assert.equal(quoted.json.data.option_amount, '8.00')
   assert.equal(Number(quoted.json.data.option_amount), localOptionSum || 8)
@@ -541,7 +542,7 @@ try {
       service_mode: 1,
       from_cart: true,
       table_id: null,
-      customer_coupon_id: Number(usable.customer_coupon_id),
+      customer_coupon_id: String(usable.customer_coupon_id),
     },
   })
   assert.equal(created.json.code, 0)
@@ -578,7 +579,7 @@ try {
       service_mode: 1,
       from_cart: true,
       table_id: null,
-      customer_coupon_id: Number(usable.customer_coupon_id),
+      customer_coupon_id: String(usable.customer_coupon_id),
     },
   })
   assert.equal(duplicateCreate.json.code, 0)
@@ -615,10 +616,11 @@ try {
   assert.equal(redeemed.json.data.status, 'success')
   assert.equal(redeemed.json.data.customer_coupon_id, another.customer_coupon_id)
 
+  const payToken = smokeClientToken('coupon_order_pay')
   const prepayRes = await request('/api/mp/customer/payments/prepay', {
     method: 'POST',
     token: mpToken,
-    body: { order_id: Number(orderId) },
+    body: { order_id: Number(orderId), client_token: payToken },
   })
   assert.equal(prepayRes.json.code, 0)
   assert.equal(prepayRes.json.data.mock, true)
@@ -626,7 +628,7 @@ try {
   const paid = await request('/api/mp/customer/payments/mock-paid', {
     method: 'POST',
     token: mpToken,
-    body: { order_id: Number(orderId) },
+    body: { order_id: Number(orderId), client_token: payToken },
   })
   assert.equal(paid.json.code, 0)
 

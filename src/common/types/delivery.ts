@@ -12,8 +12,10 @@ export interface DeliveryChannelListRes {
 }
 
 export interface DeliveryQuoteReq {
-  store_id: number
-  address_id: number
+  /** 真契约 string；真后端是 18 位雪花大整数，禁走 Number() */
+  store_id: string
+  /** 真契约 string；18 位雪花大整数 */
+  address_id: string
   product_amount?: number | string
 }
 

@@ -86,7 +86,8 @@ async function seatAtTable(qrToken: string) {
     }
 
     await session.applyResolvedTable(resolved)
-    const tid = session.tableId
+    // 显式标注 string：session.tableId 已升级为 string|null（真后端 18 位雪花大整数）。
+    const tid: string | null = session.tableId
     if (tid == null) {
       uni.showToast({ title: '入座失败', icon: 'none' })
       return

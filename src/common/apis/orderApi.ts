@@ -2,10 +2,13 @@ import { http } from '@/plugins/request'
 import type { PageResult } from '@/common/types/api'
 import type { CreateOrderReq, OrderRes } from '@/common/types/order'
 
-/** OrderRes.order_id 是 string，path 要 integer。失败抛错，不当 0。 */
-export function toOrderId(raw: string | number): number {
-  const id = Number(raw)
-  if (!Number.isInteger(id) || id <= 0) {
+/**
+ * 订单 ID 是 18 位雪花大整数（string），path 直接透传原值；
+ * 禁止 Number() 以免精度丢失。失败抛错，不当 0。
+ */
+export function toOrderId(raw: string | number): string {
+  const id = String(raw)
+  if (!id || id === '0') {
     throw new Error('订单编号无效')
   }
   return id

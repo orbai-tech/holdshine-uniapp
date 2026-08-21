@@ -65,7 +65,8 @@ onShow(() => {
   })
 })
 
-function setFilter(id: number | null) {
+/** 分类 id 是 18 位雪花大整数（string），直接透传 */
+function setFilter(id: string | null) {
   session.setCategoryId(id)
 }
 

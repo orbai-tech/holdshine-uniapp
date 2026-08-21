@@ -12,10 +12,10 @@ export const useCatalogStore = defineStore('catalog', () => {
   const products = ref<Product[]>([])
   const categories = ref<MenuCategory[]>([])
   const currentStore = ref<StoreRes | null>(null)
-  const currentStoreId = ref<number | null>(null)
+  const currentStoreId = ref<string | null>(null)
   const loading = ref(false)
   const errorText = ref('')
-  let loadedStoreId: number | null = null
+  let loadedStoreId: string | null = null
 
   function applyBrandStore(store: StoreRes, distance: string) {
     if (!brand.value) return
@@ -27,8 +27,8 @@ export const useCatalogStore = defineStore('catalog', () => {
     }
   }
 
+  /** 每次先拉取门店列表，确保 store_id 来自后端列表；当前门店仍在列表中则保留用户选择。 */
   async function ensureStore() {
-    if (currentStoreId.value && currentStore.value) return
     const here = await getUserLocation()
     const page = await listMpStores({
       page: 1,
@@ -37,6 +37,16 @@ export const useCatalogStore = defineStore('catalog', () => {
       longitude: here?.longitude,
     })
     const stores = (page.list ?? []).filter((item) => item.status === 1)
+    if (!stores.length) {
+      throw new Error('暂无营业门店')
+    }
+    const currentId = currentStoreId.value
+    const kept = currentId != null ? stores.find((item) => storeIdOf(item) === currentId) : undefined
+    if (kept) {
+      currentStore.value = kept
+      applyBrandStore(kept, storeDistanceLabel(kept, here))
+      return
+    }
     const picked = pickNearestStore(stores, here)
     currentStore.value = picked
     currentStoreId.value = storeIdOf(picked)

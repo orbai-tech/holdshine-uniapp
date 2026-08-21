@@ -16,12 +16,13 @@ const CHANNELS = [
 /** order_id → 简易进度缓存（下单后可写入） */
 const dispatchByOrder = new Map()
 
-function requireInt(value, label) {
-  const n = Number(value)
-  if (!Number.isInteger(n) || n <= 0) {
+/** 雪花 ID 是 string 大整数，只校验纯数字并原样透传，禁止 Number() */
+function requireDigitId(value, label) {
+  const s = String(value ?? '')
+  if (!/^\d+$/.test(s) || s === '0') {
     throw Object.assign(new Error(`${label}无效`), { code: 40000 })
   }
-  return n
+  return s
 }
 
 /** GET /api/mp/customer/delivery/channels */
@@ -34,12 +35,12 @@ export function listDeliveryChannels() {
  * 规则：product_amount < 20 → 不满足起送；address_id === 999 → 超距。
  */
 export function quoteDelivery(body) {
-  const storeId = requireInt(body?.store_id, 'store_id')
-  const addressId = requireInt(body?.address_id, 'address_id')
+  const storeId = requireDigitId(body?.store_id, 'store_id')
+  const addressId = requireDigitId(body?.address_id, 'address_id')
   const productAmount = Number(body?.product_amount ?? 0)
   const amount = Number.isFinite(productAmount) ? productAmount : 0
 
-  if (addressId === 999) {
+  if (addressId === '999') {
     return {
       provider: 'mock',
       in_range: false,
@@ -113,8 +114,7 @@ export function rememberTakeawayDispatch(order) {
 
 /** GET /api/mp/customer/delivery/orders/{order_id} */
 export function getTakeawayDispatch(orderId) {
-  const id = requireInt(orderId, 'order_id')
-  const key = String(id)
+  const key = requireDigitId(orderId, 'order_id')
   if (dispatchByOrder.has(key)) {
     return { ...dispatchByOrder.get(key), traces: [...(dispatchByOrder.get(key).traces || [])] }
   }

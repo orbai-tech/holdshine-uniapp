@@ -16,7 +16,8 @@ export interface WxLoginPayload extends WxLoginCodePayload {
 }
 
 export interface MpUserInfoRes {
-  uid: number | string
+  /** 真契约 string；18 位雪花大整数，前端禁止 Number() */
+  uid: string
   user_type: string
   wechat_openid: string | null
   unionid: string | null
@@ -25,7 +26,8 @@ export interface MpUserInfoRes {
   avatar_path: string | null
   status: number
   member_no: string | null
-  member_level_id: number | string | null
+  /** 真契约 string；18 位雪花大整数 */
+  member_level_id: string | null
   last_login_at: string | null
   need_reconsent?: boolean
 }

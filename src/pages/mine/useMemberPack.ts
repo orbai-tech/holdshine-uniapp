@@ -130,13 +130,14 @@ export function useMemberPack() {
       uni.showToast({ title: '该档位暂不提供', icon: 'none' })
       return
     }
-    const targetLevelId = Number(level.member_level_id)
-    if (!Number.isInteger(targetLevelId) || targetLevelId <= 0) {
+    // member_level_id 是 18 位雪花大整数（string），禁止 Number()
+    const targetLevelId = String(level.member_level_id)
+    if (!/^\d+$/.test(targetLevelId) || targetLevelId === '0') {
       uni.showToast({ title: '档位无效', icon: 'none' })
       return
     }
 
-    const clientToken = memberSubscribeIntent.acquire(String(targetLevelId))
+    const clientToken = memberSubscribeIntent.acquire(targetLevelId)
     subscribeBusy.value = true
     try {
       let result

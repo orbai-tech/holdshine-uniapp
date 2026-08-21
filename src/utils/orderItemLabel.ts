@@ -1,7 +1,8 @@
 /** 行规格文案：sku_name · option_name… */
 
 type SpecOption = {
-  option_id?: number | string
+  /** 18 位雪花大整数（string），仅用于展示 key，不参与计算 */
+  option_id?: string
   group_name?: string | null
   option_name?: string | null
   name?: string | null

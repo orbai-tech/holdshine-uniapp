@@ -1,8 +1,10 @@
 /** 预留微信支付参数形状；mock 通路带 mock: true。 */
 
 export interface PrepayReq {
-  /** path/body 契约为 integer；可从 OrderRes.order_id(string) 经 toOrderId 转换 */
-  order_id: number
+  /** 真契约 string；18 位雪花大整数，前端禁止 Number() */
+  order_id: string
+  /** 客户端幂等键：同一次支付提交复用（真契约必填） */
+  client_token: string
 }
 
 export interface PrepayRes {
@@ -15,5 +17,8 @@ export interface PrepayRes {
 }
 
 export interface MockPaidReq {
-  order_id: number
+  /** 真契约 string；18 位雪花大整数 */
+  order_id: string
+  /** 客户端幂等键：同一次支付提交复用（真契约必填） */
+  client_token: string
 }

@@ -5,8 +5,10 @@ import type { MpMenuProductRes, MpMenuRes } from '@/common/types/menu'
 import { parseAmount } from '@/utils/money'
 import { resolveMediaUrl } from '@/utils/mediaUrl'
 
-export function getStoreMenu(storeId: number) {
-  return http.get<MpMenuRes>(`/api/mp/customer/stores/${storeId}/menu`)
+/** store_id 是后端大整数原值（字符串），直接透传以避免 Number() 精度丢失。 */
+export function getStoreMenu(storeId: string | number) {
+  const id = String(storeId)
+  return http.get<MpMenuRes>(`/api/mp/customer/stores/${id}/menu`, undefined, { showError: false })
 }
 
 function catFromCategoryName(name: string): ProductCategory {
@@ -21,7 +23,7 @@ function ritualFallback(cat: ProductCategory): RitualId {
   return 'afternoon'
 }
 
-function toProduct(item: MpMenuProductRes, categoryId: number, categoryName: string): Product {
+function toProduct(item: MpMenuProductRes, categoryId: string, categoryName: string): Product {
   const skus = item.skus ?? []
   const firstSku = skus[0]
   const price = firstSku ? parseAmount(firstSku.sale_price) : parseAmount(item.base_price)

@@ -4,13 +4,15 @@ export type ProductCategory = 'coffee' | 'tonic' | 'retail'
 export type RitualId = 'morning' | 'afternoon' | 'nourish' | 'gift'
 
 export interface MenuCategory {
-  id: number
+  /** 真契约 string；18 位雪花大整数 */
+  id: string
   name: string
 }
 
 export interface Product {
   id: string
-  productId?: number
+  /** 真契约 string；18 位雪花大整数 */
+  productId?: string
   name: string
   en: string
   desc: string
@@ -22,7 +24,8 @@ export interface Product {
   tag?: string
   scene: string
   recommended?: boolean
-  categoryId?: number
+  /** 真契约 string；18 位雪花大整数 */
+  categoryId?: string
   skus?: MpMenuSkuRes[]
   optionGroups?: MpMenuOptionGroupRes[]
 }

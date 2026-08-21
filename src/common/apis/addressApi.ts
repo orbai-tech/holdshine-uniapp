@@ -2,10 +2,10 @@
 import type { AddressListRes, AddressRes, AddressUpsertReq } from '@/common/types/address'
 import type { AddressGender, AddressTag, DeliveryAddress } from '@/common/types/fulfillment'
 
-/** AddressRes.address_id 是 string，path 要 integer。失败抛错，不当 0。 */
-export function toAddressId(raw: string): number {
-  const id = Number(raw)
-  if (!Number.isInteger(id) || id <= 0) {
+/** 地址 ID 是 18 位雪花大整数（string），path 直接透传；禁止 Number() 以免精度丢失。 */
+export function toAddressId(raw: string): string {
+  const id = String(raw)
+  if (!id || id === '0') {
     throw new Error('地址编号无效')
   }
   return id
@@ -200,14 +200,14 @@ export function createAddress(payload: AddressUpsertReq) {
   return http.post<AddressRes>('/api/mp/customer/addresses', payload)
 }
 
-export function getAddress(addressId: number) {
+export function getAddress(addressId: string) {
   return http.get<AddressRes>(`/api/mp/customer/addresses/${addressId}`, undefined, { showError: false })
 }
 
-export function updateAddress(addressId: number, payload: AddressUpsertReq) {
+export function updateAddress(addressId: string, payload: AddressUpsertReq) {
   return http.put<AddressRes>(`/api/mp/customer/addresses/${addressId}`, payload)
 }
 
-export function removeAddress(addressId: number) {
+export function removeAddress(addressId: string) {
   return http.del<null>(`/api/mp/customer/addresses/${addressId}`, undefined, { showError: false })
 }

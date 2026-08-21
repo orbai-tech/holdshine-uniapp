@@ -35,8 +35,9 @@ const isRetail = computed(() => product.value?.cat === 'retail')
 
 const hasApiOptions = computed(() => Boolean(product.value?.skus?.length || product.value?.optionGroups?.length))
 
-const skuId = ref<number | null>(null)
-const optionIds = ref<number[]>([])
+/** sku_id/option_id 是 18 位雪花大整数（string），全程 string 透传 */
+const skuId = ref<string | null>(null)
+const optionIds = ref<string[]>([])
 const size = ref<CupSize>('中杯')
 const temp = ref<DrinkTemp>('热')
 const extras = ref<string[]>([])
@@ -118,7 +119,7 @@ const canAddToBag = computed(() => storeIsOpenNow(catalog.currentStore))
 
 const showRitual = computed(() => Boolean(product.value?.desc || product.value?.tag))
 
-function toggleOption(group: { select_type: number; is_required: number; values: { option_id: number }[] }, id: number) {
+function toggleOption(group: { select_type: number; is_required: number; values: { option_id: string }[] }, id: string) {
   const groupIds = new Set(group.values.map((item) => item.option_id))
   const isSingle = group.select_type === 1
   if (isSingle) {

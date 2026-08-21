@@ -93,37 +93,39 @@ const RAW = [
 ]
 
 function optionGroups(productId) {
+  // 真契约：group_id/option_id 是 string 雪花大整数；保留原数值语义，仅字符串化
   return [
     {
-      group_id: productId * 10 + 1,
+      group_id: `${productId * 10 + 1}`,
       group_code: 'temp',
       group_name: '温度',
       select_type: 1,
       is_required: 1,
       values: [
-        { option_id: productId * 100 + 1, option_name: '热', price_delta: '0.00', is_default: 1 },
-        { option_id: productId * 100 + 2, option_name: '正常冰', price_delta: '0.00', is_default: 0 },
-        { option_id: productId * 100 + 3, option_name: '少冰', price_delta: '0.00', is_default: 0 },
+        { option_id: `${productId * 100 + 1}`, option_name: '热', price_delta: '0.00', is_default: 1 },
+        { option_id: `${productId * 100 + 2}`, option_name: '正常冰', price_delta: '0.00', is_default: 0 },
+        { option_id: `${productId * 100 + 3}`, option_name: '少冰', price_delta: '0.00', is_default: 0 },
       ],
     },
     {
-      group_id: productId * 10 + 2,
+      group_id: `${productId * 10 + 2}`,
       group_code: 'extra',
       group_name: '加料',
       select_type: 2,
       is_required: 0,
       values: [
-        { option_id: productId * 100 + 11, option_name: '加燕窝 15g', price_delta: '8.00', is_default: 0 },
-        { option_id: productId * 100 + 12, option_name: '加浓缩 1 份', price_delta: '3.00', is_default: 0 },
-        { option_id: productId * 100 + 13, option_name: '换燕麦奶', price_delta: '3.00', is_default: 0 },
-        { option_id: productId * 100 + 14, option_name: '加核桃碎', price_delta: '3.00', is_default: 0 },
+        { option_id: `${productId * 100 + 11}`, option_name: '加燕窝 15g', price_delta: '8.00', is_default: 0 },
+        { option_id: `${productId * 100 + 12}`, option_name: '加浓缩 1 份', price_delta: '3.00', is_default: 0 },
+        { option_id: `${productId * 100 + 13}`, option_name: '换燕麦奶', price_delta: '3.00', is_default: 0 },
+        { option_id: `${productId * 100 + 14}`, option_name: '加核桃碎', price_delta: '3.00', is_default: 0 },
       ],
     },
   ]
 }
 
 export const products = RAW.map((item) => ({
-  product_id: item.product_id,
+  // 真契约：product_id/category_id/sku_id 是 string 雪花大整数；保留原数值语义
+  product_id: `${item.product_id}`,
   product_name: item.product_name,
   short_description: item.short_description,
   cover_image_path: item.cover,
@@ -132,11 +134,11 @@ export const products = RAW.map((item) => ({
   caffeine_level: null,
   tags: item.tags,
   is_recommended: item.is_recommended,
-  category_id: item.category_id,
+  category_id: `${item.category_id}`,
   category_name: item.category_name,
   skus: [
-    { sku_id: item.product_id * 10 + 1, sku_name: '中杯', cup_size: 'M', sale_price: money(item.base_price) },
-    { sku_id: item.product_id * 10 + 2, sku_name: '大杯', cup_size: 'L', sale_price: money(item.base_price + 3) },
+    { sku_id: `${item.product_id * 10 + 1}`, sku_name: '中杯', cup_size: 'M', sale_price: money(item.base_price) },
+    { sku_id: `${item.product_id * 10 + 2}`, sku_name: '大杯', cup_size: 'L', sale_price: money(item.base_price + 3) },
   ],
   option_groups: optionGroups(item.product_id),
 }))
@@ -198,7 +200,7 @@ export function getStoreDetail(storeId, point = null) {
 }
 
 export function findProduct(productId) {
-  return products.find((item) => item.product_id === Number(productId)) || null
+  return products.find((item) => item.product_id === String(productId)) || null
 }
 
 export function buildMenu(storeId) {
@@ -215,7 +217,7 @@ export function buildMenu(storeId) {
     group.products.push(product)
   }
   return {
-    store_id: Number(store.store_id),
+    store_id: store.store_id,
     store_name: store.store_name,
     categories: [...groups.values()],
   }

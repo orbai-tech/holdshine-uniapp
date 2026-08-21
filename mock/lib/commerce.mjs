@@ -62,8 +62,8 @@ function cartKey(openid, storeId, serviceMode = 1) {
 function emptyCart(storeId, serviceMode = 1) {
   const store = findStore(storeId)
   return {
-    cart_id: Number(storeId) || 1,
-    store_id: Number(storeId),
+    cart_id: String(storeId) || '1',
+    store_id: String(storeId),
     store_name: store?.store_name || '',
     table_id: null,
     table_status: null,
@@ -101,8 +101,8 @@ function summarize(storeId, items, serviceMode = 1, tableId = null) {
     optionAmount += option * item.quantity
   }
   return {
-    cart_id: Number(storeId) || 1,
-    store_id: Number(storeId),
+    cart_id: String(storeId) || '1',
+    store_id: String(storeId),
     store_name: store?.store_name || '',
     table_id: tableId,
     table_status: null,
@@ -122,8 +122,8 @@ function userOrders(openid) {
 }
 
 function findUserOrder(openid, orderId) {
-  const id = Number(orderId)
-  return userOrders(openid).find((order) => Number(order.order_id) === id)
+  const id = String(orderId)
+  return userOrders(openid).find((order) => String(order.order_id) === id)
 }
 
 export function getCart(openid, storeId, serviceMode = 1) {
@@ -148,17 +148,17 @@ export function getCartOverview(openid) {
   return { dine_in, takeaway, mall }
 }
 
-/** 规格询价：与加购同价规则，不写入购物车 */
+/** 规格询价：与加购同价规则，不写入购物车。ID 全部 string 透传（雪花大整数） */
 export function quoteLine(body) {
-  const storeId = Number(body.store_id)
-  const productId = Number(body.product_id)
-  if (!Number.isInteger(storeId) || storeId <= 0) {
+  const storeId = String(body.store_id ?? '')
+  const productId = String(body.product_id ?? '')
+  if (!/^\d+$/.test(storeId) || storeId === '0') {
     throw Object.assign(new Error('缺少 store_id'), { code: 40000 })
   }
   if (!findStore(storeId)) {
     throw Object.assign(new Error('门店不存在'), { code: 40000 })
   }
-  if (!Number.isInteger(productId) || productId <= 0) {
+  if (!/^\d+$/.test(productId) || productId === '0') {
     throw Object.assign(new Error('缺少 product_id'), { code: 40000 })
   }
   const product = findProduct(productId)
@@ -168,7 +168,8 @@ export function quoteLine(body) {
   if (!product.skus?.length) {
     throw Object.assign(new Error('商品无规格'), { code: 40000 })
   }
-  const skuId = body.sku_id == null || body.sku_id === '' ? product.skus[0].sku_id : Number(body.sku_id)
+  const skuId =
+    body.sku_id == null || body.sku_id === '' ? product.skus[0].sku_id : String(body.sku_id)
   const sku = product.skus.find((item) => item.sku_id === skuId)
   if (!sku) {
     throw Object.assign(new Error('规格不存在'), { code: 40000 })
@@ -177,7 +178,7 @@ export function quoteLine(body) {
   if (!Number.isInteger(quantity) || quantity <= 0) {
     throw Object.assign(new Error('数量无效'), { code: 40000 })
   }
-  const optionIds = Array.isArray(body.option_ids) ? body.option_ids.map(Number) : []
+  const optionIds = Array.isArray(body.option_ids) ? body.option_ids.map(String) : []
   const optionsMap = optionLookup(product)
   const options = []
   let optionEach = 0
@@ -209,7 +210,7 @@ export function quoteLine(body) {
 
 export function addCartItem(openid, body) {
   const quoted = quoteLine(body)
-  const storeId = Number(body.store_id)
+  const storeId = String(body.store_id ?? '')
   const productId = quoted.product_id
   const skuId = quoted.sku_id
   const quantity = quoted.quantity
@@ -220,7 +221,8 @@ export function addCartItem(openid, body) {
   const serviceMode = normalizeServiceMode(body.service_mode, 1)
   const key = cartKey(openid, storeId, serviceMode)
   const current = carts.get(key) || emptyCart(storeId, serviceMode)
-  const tableId = body.table_id == null || body.table_id === '' ? current.table_id : Number(body.table_id)
+  const tableId =
+    body.table_id == null || body.table_id === '' ? current.table_id : String(body.table_id)
   const items = [...current.items]
   const same = items.find(
     (item) =>
@@ -233,7 +235,7 @@ export function addCartItem(openid, body) {
     same.line_amount = money((Number(same.unit_price) + Number(same.option_amount)) * same.quantity)
   } else {
     items.push({
-      item_id: nextItemId++,
+      item_id: String(nextItemId++),
       product_id: productId,
       sku_id: skuId,
       product_name: product.product_name,
@@ -251,8 +253,8 @@ export function addCartItem(openid, body) {
 }
 
 export function updateCartItem(openid, itemId, body) {
-  const id = Number(itemId)
-  if (!Number.isInteger(id) || id <= 0) {
+  const id = String(itemId ?? '')
+  if (!/^\d+$/.test(id) || id === '0') {
     throw Object.assign(new Error('缺少 item_id'), { code: 40000 })
   }
   const quantity = Number(body.quantity)
@@ -275,8 +277,8 @@ export function updateCartItem(openid, itemId, body) {
 }
 
 export function removeCartItem(openid, itemId) {
-  const id = Number(itemId)
-  if (!Number.isInteger(id) || id <= 0) {
+  const id = String(itemId ?? '')
+  if (!/^\d+$/.test(id) || id === '0') {
     throw Object.assign(new Error('缺少 item_id'), { code: 40000 })
   }
   for (const [key, cart] of carts.entries()) {
@@ -292,8 +294,8 @@ export function removeCartItem(openid, itemId) {
 }
 
 export function clearCart(openid, body) {
-  const storeId = Number(body.store_id)
-  if (!Number.isInteger(storeId) || storeId <= 0) {
+  const storeId = String(body.store_id ?? '')
+  if (!/^\d+$/.test(storeId) || storeId === '0') {
     throw Object.assign(new Error('缺少 store_id'), { code: 40000 })
   }
   const serviceMode = normalizeServiceMode(body.service_mode, 1)
@@ -302,8 +304,8 @@ export function clearCart(openid, body) {
   return null
 }
 
-export function createOrderFromCart(openid, body) {
-  const clientToken = body?.client_token
+/** 真契约：createOrder / prepay / mock-paid 都要求 8–64 位 client_token */
+function assertClientToken(clientToken) {
   if (
     clientToken == null ||
     typeof clientToken !== 'string' ||
@@ -312,13 +314,18 @@ export function createOrderFromCart(openid, body) {
   ) {
     throw Object.assign(new Error('client_token 无效'), { code: 40000 })
   }
+}
+
+export function createOrderFromCart(openid, body) {
+  assertClientToken(body?.client_token)
+  const clientToken = body.client_token
   const idemKey = `${openid}:${clientToken}`
   const existing = idempotentOrders.get(idemKey)
   if (existing) return existing
 
-  const storeId = Number(body.store_id)
+  const storeId = String(body.store_id ?? '')
   const serviceMode = normalizeServiceMode(body.service_mode)
-  if (!Number.isInteger(storeId) || storeId <= 0) {
+  if (!/^\d+$/.test(storeId) || storeId === '0') {
     throw Object.assign(new Error('缺少 store_id'), { code: 40000 })
   }
   if (body.from_cart !== true) {
@@ -333,10 +340,8 @@ export function createOrderFromCart(openid, body) {
     throw Object.assign(new Error('购物车为空'), { code: 40000 })
   }
   const tableId =
-    body.table_id == null || body.table_id === ''
-      ? null
-      : Number(body.table_id)
-  if (tableId != null && !Number.isInteger(tableId)) {
+    body.table_id == null || body.table_id === '' ? null : String(body.table_id)
+  if (tableId != null && !/^\d+$/.test(tableId)) {
     throw Object.assign(new Error('table_id 无效'), { code: 40000 })
   }
   let addressId = null
@@ -344,8 +349,8 @@ export function createOrderFromCart(openid, body) {
     if (body.address_id == null || body.address_id === '') {
       throw Object.assign(new Error('外卖须传 address_id'), { code: 40000 })
     }
-    addressId = Number(body.address_id)
-    if (!Number.isInteger(addressId) || addressId <= 0) {
+    addressId = String(body.address_id)
+    if (!/^\d+$/.test(addressId) || addressId === '0') {
       throw Object.assign(new Error('address_id 无效'), { code: 40000 })
     }
   }
@@ -396,8 +401,8 @@ export function createOrderFromCart(openid, body) {
   )
   if (appliedCouponId != null) {
     redeemCoupon(
-      { customer_coupon_id: appliedCouponId, store_id: storeId, order_id: orderId },
-      { subtotal: memberGoods, orderId },
+      { customer_coupon_id: appliedCouponId, store_id: storeId, order_id: String(orderId) },
+      { subtotal: memberGoods, orderId: String(orderId) },
     )
   }
 
@@ -435,7 +440,7 @@ export function createOrderFromCart(openid, body) {
     coupon_amount: money(discount),
     member_discount_amount: money(memberDiscountAmount),
     customer_coupon_id: appliedCouponId,
-    coupon_id: appliedCouponId == null ? null : Number(appliedCouponId),
+    coupon_id: appliedCouponId == null ? null : String(appliedCouponId),
     payable_amount: money(payable),
     paid_amount: money(0),
     pickup_code: null,
@@ -565,7 +570,8 @@ export function createMemberCardOrder(openid, { payable_amount, title } = {}) {
   return order
 }
 
-export function prepay(openid, orderId) {
+export function prepay(openid, orderId, clientToken) {
+  assertClientToken(clientToken)
   const order = findUserOrder(openid, orderId)
   if (!order) {
     throw Object.assign(new Error('订单不存在'), { code: 40000 })
@@ -583,7 +589,8 @@ export function prepay(openid, orderId) {
   }
 }
 
-export function mockPaid(openid, orderId) {
+export function mockPaid(openid, orderId, clientToken) {
+  assertClientToken(clientToken)
   const order = findUserOrder(openid, orderId)
   if (!order) {
     throw Object.assign(new Error('订单不存在'), { code: 40000 })

@@ -15,7 +15,7 @@ const SAMPLE_COUPONS = [
     valid_end_at: null,
     used_at: null,
     template: {
-      coupon_template_id: 1,
+      coupon_template_id: '1',
       coupon_name: '满30减5',
       coupon_type: 1,
       discount_amount: '5.00',
@@ -32,7 +32,7 @@ const SAMPLE_COUPONS = [
     valid_end_at: null,
     used_at: null,
     template: {
-      coupon_template_id: 2,
+      coupon_template_id: '2',
       coupon_name: '满60减12',
       coupon_type: 1,
       discount_amount: '12.00',
@@ -49,7 +49,7 @@ const SAMPLE_COUPONS = [
     valid_end_at: null,
     used_at: null,
     template: {
-      coupon_template_id: 3,
+      coupon_template_id: '3',
       coupon_name: '满100减25',
       coupon_type: 1,
       discount_amount: '25.00',
@@ -161,10 +161,10 @@ function findTemplate(templateId) {
 }
 
 function hasUnusedOfTemplate(templateId) {
-  const id = Number(templateId)
+  const id = String(templateId)
   return SAMPLE_COUPONS.some(
     (item) =>
-      Number(item.template.coupon_template_id) === id &&
+      String(item.template.coupon_template_id) === id &&
       item.coupon_status === COUPON_STATUS_UNUSED,
   )
 }
@@ -270,8 +270,8 @@ export function getMyCouponDetail(customerCouponId) {
 /** GET /api/mp/customer/coupons/available?store_id?（可选，不传则不按门店过滤） */
 export function listAvailableCoupons(storeId) {
   if (storeId != null && storeId !== '') {
-    const id = Number(storeId)
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = String(storeId)
+    if (!/^\d+$/.test(id) || id === '0') {
       throw Object.assign(new Error('store_id 无效'), { code: 40000 })
     }
   }
@@ -293,8 +293,8 @@ export function listUsableCoupons({
   service_mode: serviceMode,
   member_summary: memberSummary = null,
 }) {
-  const id = Number(storeId)
-  if (!Number.isInteger(id) || id <= 0) {
+  const id = String(storeId ?? '')
+  if (!/^\d+$/.test(id) || id === '0') {
     throw Object.assign(new Error('缺少 store_id'), { code: 40000 })
   }
   const amount = Number(goodsAmount)
@@ -336,8 +336,8 @@ export function listUsableCoupons({
 
 /** POST /api/mp/customer/coupons/claim */
 export function claimCoupon(body) {
-  const templateId = Number(body?.coupon_template_id)
-  if (!Number.isInteger(templateId) || templateId <= 0) {
+  const templateId = String(body?.coupon_template_id ?? '')
+  if (!/^\d+$/.test(templateId) || templateId === '0') {
     throw Object.assign(new Error('缺少 coupon_template_id'), { code: 40000 })
   }
   const tpl = findTemplate(templateId)
@@ -372,8 +372,8 @@ export function claimCoupon(body) {
 
 /** @deprecated 契约已删；保留供旧脚本，入参支持 customer_coupon_id */
 export function previewCheckout(cart, body) {
-  const storeId = Number(body.store_id)
-  if (!Number.isInteger(storeId) || storeId <= 0) {
+  const storeId = String(body.store_id ?? '')
+  if (!/^\d+$/.test(storeId) || storeId === '0') {
     throw Object.assign(new Error('缺少 store_id'), { code: 40000 })
   }
   const subtotal = cartSubtotal(cart)
@@ -406,7 +406,7 @@ export function previewCheckout(cart, body) {
     discount_amount: money(discount),
     payable_amount: money(payable),
     customer_coupon_id: customerCouponId,
-    coupon_id: customerCouponId == null ? null : Number(customerCouponId),
+    coupon_id: customerCouponId == null ? null : String(customerCouponId),
     coupons,
   }
 }

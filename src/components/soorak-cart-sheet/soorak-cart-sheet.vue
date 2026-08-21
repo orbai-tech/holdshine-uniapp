@@ -75,8 +75,9 @@ function onClearCart() {
   })
 }
 
-function itemImage(productId: number) {
-  return catalog.findProduct(String(productId))?.img || '/static/images/products/latte.jpg'
+/** product_id 是 18 位雪花大整数（string），string 透传 */
+function itemImage(productId: string) {
+  return catalog.findProduct(productId)?.img || '/static/images/products/latte.jpg'
 }
 
 function badgeText(count: number) {

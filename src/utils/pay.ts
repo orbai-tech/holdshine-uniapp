@@ -46,17 +46,21 @@ export class PayCancelledError extends Error {
 }
 
 /** H5/devtools：mock-paid；mp-weixin：真参走 requestPayment，缺参或 mock 标记走 mock-paid。 */
-export async function settlePayment(orderId: number | string, prepay: PrepayRes): Promise<void> {
+export async function settlePayment(
+  orderId: number | string,
+  prepay: PrepayRes,
+  clientToken?: string,
+): Promise<void> {
   // #ifndef MP-WEIXIN
   if (!(await confirmMockPay())) throw new PayCancelledError()
-  await mockPaid(orderId)
+  await mockPaid(orderId, clientToken)
   return
   // #endif
 
   // #ifdef MP-WEIXIN
   if (prepay.mock || !hasPayParams(prepay)) {
     if (!(await confirmMockPay())) throw new PayCancelledError()
-    await mockPaid(orderId)
+    await mockPaid(orderId, clientToken)
     return
   }
   try {
@@ -65,7 +69,7 @@ export async function settlePayment(orderId: number | string, prepay: PrepayRes)
     if (import.meta.env.PROD) throw error
     // 开发态真参失败：仍给机会 mock 付或留下待支付
     if (!(await confirmMockPay())) throw new PayCancelledError()
-    await mockPaid(orderId)
+    await mockPaid(orderId, clientToken)
   }
   // #endif
 }

@@ -9,8 +9,12 @@ import type {
   CartUpdateQtyReq,
 } from '@/common/types/cart'
 
-export function getCart(storeId: number, serviceMode?: number | null) {
-  const query: Record<string, number> = { store_id: storeId }
+/**
+ * 查询当前店购物袋。store_id 是后端 18 位大整数原值（字符串），内部统一 String()
+ * 透传，禁止 Number() 以免精度丢失。
+ */
+export function getCart(storeId: string | number, serviceMode?: number | null) {
+  const query: Record<string, string | number> = { store_id: String(storeId) }
   if (serviceMode != null) query.service_mode = serviceMode
   return http.get<CartRes>('/api/mp/customer/cart', query, { showError: false })
 }
@@ -32,11 +36,13 @@ export function addCartItem(payload: CartAddReq) {
   return http.post<CartRes>('/api/mp/customer/cart/items', payload)
 }
 
-export function updateCartItem(itemId: number, payload: CartUpdateQtyReq) {
+/** item_id 是 18 位雪花大整数原值（字符串），直接透传禁止 Number() */
+export function updateCartItem(itemId: string, payload: CartUpdateQtyReq) {
   return http.put<CartRes>(`/api/mp/customer/cart/items/${itemId}`, payload)
 }
 
-export function removeCartItem(itemId: number) {
+/** item_id 是 18 位雪花大整数原值（字符串），直接透传禁止 Number() */
+export function removeCartItem(itemId: string) {
   return http.del<CartRes>(`/api/mp/customer/cart/items/${itemId}`)
 }
 

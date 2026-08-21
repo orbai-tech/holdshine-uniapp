@@ -28,9 +28,13 @@ export function lineAmount(item: CartItem): number {
   return calcLocalCartLineAmount(item)
 }
 
-function countForStore(list: CartRes[] | undefined, storeId: number | null): number {
+/**
+ * 关联购物袋与当前门店。后端 store_id 在 CartRes.list[*] 是 string（真假后端均如此），
+ * 当前门店 storeId 也是 string，直接字符串对比，禁用 Number() 以免大整数精度丢失。
+ */
+function countForStore(list: CartRes[] | undefined, storeId: string | null): number {
   if (storeId == null || !list?.length) return 0
-  const hit = list.find((row) => Number(row.store_id) === storeId)
+  const hit = list.find((row) => String(row.store_id) === storeId)
   return hit?.item_count ?? 0
 }
 
@@ -114,16 +118,17 @@ export const useCartStore = defineStore('cart', () => {
     return parseAmount(row.line_amount)
   }
 
-  const pendingQtyDelta = new Map<number, number>()
+  /** item_id 是 18 位雪花大整数（string），Map key 保持 string 与后端一致 */
+  const pendingQtyDelta = new Map<string, number>()
   let qtyDrainRunning = false
 
-  function enqueueQtyDelta(itemId: number, delta: number) {
+  function enqueueQtyDelta(itemId: string, delta: number) {
     if (!Number.isFinite(delta) || delta === 0) return
     const prev = pendingQtyDelta.get(itemId) ?? 0
     pendingQtyDelta.set(itemId, prev + delta)
   }
 
-  async function flushPendingQty(itemId: number) {
+  async function flushPendingQty(itemId: string) {
     if (writeBusy.value || !remote.value) return
     const delta = pendingQtyDelta.get(itemId)
     if (delta == null || delta === 0) {
@@ -164,7 +169,7 @@ export const useCartStore = defineStore('cart', () => {
     }
   }
 
-  async function changeRemoteQty(itemId: number, delta: number) {
+  async function changeRemoteQty(itemId: string, delta: number) {
     if (!remote.value) return
     enqueueQtyDelta(itemId, delta)
     await drainPendingQty()
@@ -224,7 +229,7 @@ export const useCartStore = defineStore('cart', () => {
     const sourceCount = remote.value ? remote.value.item_count : items.value.length
     if (!sourceCount) throw new Error('购物袋是空的')
 
-    let addressId: number | null = null
+    let addressId: string | null = null
     if (serviceMode === SERVICE_MODE.DELIVERY) {
       addressId = parseAddressId(session.deliveryAddress?.address_id)
       if (addressId == null) throw new Error('请先保存收货地址')
@@ -235,11 +240,9 @@ export const useCartStore = defineStore('cart', () => {
       const expectedPayable =
         opts.expected_payable == null ? null : Number(opts.expected_payable)
       const couponRaw = opts.customer_coupon_id
-      const couponId =
-        couponRaw == null || couponRaw === ''
-          ? null
-          : Number(couponRaw)
-      if (couponId != null && (!Number.isInteger(couponId) || couponId <= 0)) {
+      // 优惠券 ID 是 18 位雪花大整数（string），只做非空校验，禁止 Number()
+      const couponId = couponRaw == null || couponRaw === '' ? null : couponRaw
+      if (couponId != null && !/^\d+$/.test(couponId)) {
         throw new Error('优惠券编号无效')
       }
       const tableId = serviceMode === SERVICE_MODE.DINE_IN ? toTableId(session) : null
@@ -286,8 +289,8 @@ export const useCartStore = defineStore('cart', () => {
 
       let paid = false
       try {
-        const payParams = await prepay(order.order_id)
-        await settlePayment(order.order_id, payParams)
+        const payParams = await prepay(order.order_id, clientToken)
+        await settlePayment(order.order_id, payParams, clientToken)
         paid = true
       } catch (error) {
         const cancelled =

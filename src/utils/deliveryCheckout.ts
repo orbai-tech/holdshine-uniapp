@@ -23,11 +23,11 @@ export function defaultChannelCode(list: DeliveryChannelRes[] | null | undefined
   return active?.code ?? ready[0]?.code ?? null
 }
 
-/** 地址 id 是否可作 quote / 下单 path int */
-export function parseAddressId(raw: string | number | null | undefined): number | null {
+/** 地址 id 是否可作 quote / 下单 path 透传；18 位雪花大整数禁止 Number() */
+export function parseAddressId(raw: string | number | null | undefined): string | null {
   if (raw == null || raw === '') return null
-  const id = typeof raw === 'number' ? raw : Number(String(raw).trim())
-  if (!Number.isInteger(id) || id <= 0) return null
+  const id = String(raw).trim()
+  if (!/^\d+$/.test(id) || id === '0') return null
   return id
 }
 

@@ -210,12 +210,12 @@ export function subscribeMember(openid, body) {
   const cached = state.subscribeByToken.get(clientToken)
   if (cached) return { ...cached }
 
-  const targetId = Number(body?.target_level_id)
-  if (!Number.isInteger(targetId) || targetId <= 0) {
+  const targetId = String(body?.target_level_id ?? '')
+  if (!/^\d+$/.test(targetId) || targetId === '0') {
     throw Object.assign(new Error('缺少 target_level_id'), { code: 40000 })
   }
   const offers = buildOffers(state)
-  const offer = offers.find((item) => Number(item.member_level_id) === targetId)
+  const offer = offers.find((item) => String(item.member_level_id) === targetId)
   if (!offer || !offer.purchasable) {
     throw Object.assign(new Error('该档位不可购买'), { code: 40000 })
   }
