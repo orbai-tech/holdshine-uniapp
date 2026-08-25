@@ -84,6 +84,11 @@ function formatBriefRule(perk: CouponTemplateBriefRes): string {
   return '无门槛 · 单笔可用一次'
 }
 
+/** 券名：契约新增 display_label 时优先采用，否则回退本地名称 */
+function formatMineTitle(row: MyCouponRes): string {
+  return row.display_label || row.template?.coupon_name || row.title || '礼遇'
+}
+
 function formatMineRule(row: MyCouponRes): string {
   const threshold = Number(row.template?.threshold_amount ?? row.threshold_amount ?? 0)
   if (threshold > 0) return `满 ¥${threshold} 可享 · 门店饮品`
@@ -203,16 +208,15 @@ function setMineStatus(next: MineStatusFilter) {
 }
 
 function mineStatusLabel(filter: MineStatusFilter): string {
-  const counts = mineCounts.value ?? {
-    unused: mineList.value.filter((row) => Number(row.coupon_status) === COUPON_STATUS.UNUSED).length,
-    used: mineList.value.filter((row) => Number(row.coupon_status) === COUPON_STATUS.USED).length,
-    expired: mineList.value.filter((row) => Number(row.coupon_status) === COUPON_STATUS.EXPIRED).length,
-    total: mineList.value.length,
+  const counts = mineCounts.value
+  const local = (statuses: readonly number[]) =>
+    mineList.value.filter((row) => statuses.includes(Number(row.coupon_status))).length
+  if (filter === 'all') return `全部 ${counts?.all ?? mineList.value.length}`
+  if (filter === 'unused') {
+    return `未使用 ${counts?.usable ?? local([COUPON_STATUS.UNUSED, COUPON_STATUS.LOCKED])}`
   }
-  if (filter === 'all') return `全部 ${counts.total}`
-  if (filter === 'unused') return `未用 ${counts.unused}`
-  if (filter === 'used') return `已用 ${counts.used}`
-  return `过期 ${counts.expired}`
+  if (filter === 'used') return `已使用 ${local([COUPON_STATUS.USED])}`
+  return `已过期 ${counts?.expired ?? local([COUPON_STATUS.EXPIRED])}`
 }
 
 async function onClaim(perk: CouponTemplateBriefRes) {
@@ -377,7 +381,7 @@ function closeDetail() {
           >
             <view class="perk-card__label">
               <view class="perk-card__dot" :class="`perk-card__dot--${dotClass(index)}`" />
-              <text class="t-label">{{ row.template?.coupon_name || row.title || '礼遇' }}</text>
+              <text class="t-label">{{ formatMineTitle(row) }}</text>
             </view>
             <text class="perk-card__amount">{{ formatMineAmount(row) }}</text>
             <view class="perk-card__rule">

@@ -40,8 +40,8 @@ function normalizeClientToken(raw: string | undefined) {
 /** POST /api/mp/customer/member/subscribe — 开通/续费/升档 */
 export function subscribeMember(body: MemberSubscribeReq) {
   // target_level_id 是 18 位雪花大整数（string），只校验非空/纯数字，禁止 Number()
-  const targetLevelId = String(body.target_level_id)
-  if (!/^\d+$/.test(targetLevelId)) {
+  const levelId = String(body.target_level_id)
+  if (!/^\d+$/.test(levelId)) {
     return Promise.reject(new Error('目标档位无效'))
   }
   let clientToken = ''
@@ -51,7 +51,7 @@ export function subscribeMember(body: MemberSubscribeReq) {
     return Promise.reject(error)
   }
   return http.post<MemberSubscribeRes>('/api/mp/customer/member/subscribe', {
-    target_level_id: targetLevelId,
+    target_level_id: levelId,
     client_token: clientToken,
   })
 }

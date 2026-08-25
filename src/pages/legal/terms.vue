@@ -25,7 +25,7 @@ onUnload(() => {
 <template>
   <SoorakChrome :title="TERMS_TITLE" show-back>
     <SoorakLegalDoc
-      :doc-type="LEGAL_DOC_TYPE.HANDBOOK"
+      :doc-type="LEGAL_DOC_TYPE.USER"
       :fallback-title="TERMS_TITLE"
       :fallback-paragraphs="TERMS_PARAGRAPHS"
     />

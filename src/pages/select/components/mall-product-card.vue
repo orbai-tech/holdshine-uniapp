@@ -5,6 +5,7 @@ import { useSessionStore } from '@/stores/session'
 import { parseAmount } from '@/utils/money'
 import { applyMemberDiscount, formatMemberGoodsMoney } from '@/utils/pricing'
 import { resolveMediaUrl } from '@/utils/mediaUrl'
+import SoorakImage from '@/components/soorak-image/soorak-image.vue'
 
 const props = defineProps<{
   product: MallProductCardRes
@@ -35,7 +36,7 @@ const priceText = computed(() => {
 <template>
   <view class="mp-product-card" @click="emit('open', props.product.product_id)">
     <view class="mp-product-card__media">
-      <image :src="coverOf(product)" mode="aspectFill" class="mp-product-card__img" />
+      <SoorakImage :src="coverOf(product)" mode="aspectFill" class="mp-product-card__img" />
       <text v-if="product.badge_text" class="mp-product-card__tag">{{ product.badge_text }}</text>
     </view>
     <view class="mp-product-card__body">

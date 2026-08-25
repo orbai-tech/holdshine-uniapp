@@ -1,5 +1,9 @@
 ﻿import { http } from '@/plugins/request'
 import { toStoreId } from '@/utils/storeId'
+import {
+  COUPON_MINE_TAB,
+  type CouponMineTab,
+} from '@/common/types/coupon'
 import type {
   CouponClaimReq,
   CouponTemplateBriefRes,
@@ -86,14 +90,16 @@ function normalizeMineResponse(data: MyCouponListRes | MyCouponRes[] | null | un
 
 /**
  * 我的优惠券。真契约：`{ list, counts? }`；旧 mock 可能直接返回数组。
+ * 分页参数：契约已废弃 `coupon_status`，改用 `tab`（all/claimable/usable/expired）。
  */
-export async function listMyCoupons(couponStatus?: number) {
-  const query: Record<string, number> = {}
-  if (couponStatus != null) {
-    if (!Number.isInteger(couponStatus) || couponStatus <= 0) {
-      throw new Error('优惠券状态无效')
+export async function listMyCoupons(tab?: CouponMineTab) {
+  const query: Record<string, string> = {}
+  if (tab != null) {
+    const allowed = Object.values(COUPON_MINE_TAB)
+    if (!allowed.includes(tab)) {
+      throw new Error('优惠券筛选类型无效')
     }
-    query.coupon_status = couponStatus
+    query.tab = tab
   }
   const data = await http.get<MyCouponListRes | MyCouponRes[]>(
     '/api/mp/customer/coupons/mine',

@@ -92,12 +92,6 @@ async function onLogin() {
   await load()
 }
 
-async function onReconsent() {
-  const ok = await session.requestReconsent()
-  if (!ok) return
-  await load()
-}
-
 async function onLogout() {
   await session.logout()
   member.clearMemberState()
@@ -242,14 +236,6 @@ async function onGetPhoneNumber(event: {
       <SoorakButton @click="load">重试</SoorakButton>
     </view>
     <view v-else class="page-mine page-pad">
-      <view
-        v-if="session.needReconsent"
-        class="reconsent-bar"
-        @click="onReconsent"
-      >
-        <text class="reconsent-bar__text">协议已更新，请重新阅读并同意</text>
-        <text class="reconsent-bar__go">去处理 ›</text>
-      </view>
       <view class="member-hero">
         <view class="member-hero__label-row">
           <text class="t-label member-hero__label">元气善筑</text>
@@ -442,32 +428,6 @@ async function onGetPhoneNumber(event: {
   color: $mp-paper;
   border-radius: 24rpx;
   padding: 36rpx 32rpx;
-}
-
-.reconsent-bar {
-  margin-bottom: 20rpx;
-  padding: 24rpx 28rpx;
-  background: $mp-cloud;
-  border-radius: 16rpx;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-}
-
-.reconsent-bar__text {
-  flex: 1;
-  min-width: 0;
-  font-size: 24rpx;
-  line-height: 1.5;
-  color: $mp-ink;
-}
-
-.reconsent-bar__go {
-  flex-shrink: 0;
-  font-size: 24rpx;
-  color: $mp-brass;
-  letter-spacing: 0.04em;
 }
 
 .member-hero__label-row {

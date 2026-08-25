@@ -298,7 +298,7 @@ try {
   const subscribeNoToken = await request('/api/mp/customer/member/subscribe', {
     method: 'POST',
     token: mpToken,
-    body: { target_level_id: Number(goldOffer.member_level_id) },
+    body: { level_id: Number(goldOffer.member_level_id) },
   })
   assert.equal(subscribeNoToken.json.code, 40000)
 
@@ -306,7 +306,7 @@ try {
   const goldSub = await request('/api/mp/customer/member/subscribe', {
     method: 'POST',
     token: mpToken,
-    body: { target_level_id: Number(goldOffer.member_level_id), client_token: goldToken },
+    body: { level_id: Number(goldOffer.member_level_id), client_token: goldToken },
   })
   assert.equal(goldSub.json.code, 0)
   assert.ok(goldSub.json.data.order_id)
@@ -327,7 +327,7 @@ try {
   const goldReplay = await request('/api/mp/customer/member/subscribe', {
     method: 'POST',
     token: mpToken,
-    body: { target_level_id: Number(goldOffer.member_level_id), client_token: goldToken },
+    body: { level_id: Number(goldOffer.member_level_id), client_token: goldToken },
   })
   assert.equal(goldReplay.json.code, 0)
   assert.equal(goldReplay.json.data.order_id, goldSub.json.data.order_id)
@@ -385,12 +385,10 @@ try {
 
   const cartOverview = await request('/api/mp/customer/cart/overview', { token: mpToken })
   assert.equal(cartOverview.json.code, 0)
-  assert.ok(Array.isArray(cartOverview.json.data.dine_in))
-  assert.ok(Array.isArray(cartOverview.json.data.takeaway))
-  assert.ok(Array.isArray(cartOverview.json.data.mall))
-  assert.equal(cartOverview.json.data.dine_in.length, 1)
-  assert.equal(cartOverview.json.data.dine_in[0].item_count, 2)
-  assert.equal(cartOverview.json.data.takeaway.length, 0)
+  assert.equal(typeof cartOverview.json.data.coffee_qty, 'number')
+  assert.equal(typeof cartOverview.json.data.mall_qty, 'number')
+  assert.equal(cartOverview.json.data.coffee_qty, 2)
+  assert.equal(cartOverview.json.data.mall_qty, 0)
 
   const qtyUpdated = await request(`/api/mp/customer/cart/items/${itemId}`, {
     method: 'PUT',
@@ -412,8 +410,8 @@ try {
   assert.ok(Array.isArray(mine.json.data.list))
   assert.ok(mine.json.data.list.length >= 2)
   assert.ok(mine.json.data.counts)
-  assert.equal(typeof mine.json.data.counts.unused, 'number')
-  assert.equal(typeof mine.json.data.counts.total, 'number')
+  assert.equal(typeof mine.json.data.counts.usable, 'number')
+  assert.equal(typeof mine.json.data.counts.all, 'number')
   const usable = mine.json.data.list.find((item) => {
     const threshold = Number(item.template.threshold_amount)
     return cartSubtotal + 1e-9 >= threshold

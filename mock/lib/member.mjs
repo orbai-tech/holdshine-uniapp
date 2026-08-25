@@ -14,6 +14,7 @@ const LEVELS = [
     monthly_price: '49.00',
     duration_days: 30,
     benefits_description: '全场饮品 9 折；商城 95 折；生日燕窝饮兑换；双倍积分日',
+    points_bonus_rate: 110,
   },
 ]
 
@@ -116,6 +117,7 @@ function buildSummary(openid, state) {
     is_active: Boolean(state.isActive && remaining > 0),
     benefits_description: level.benefits_description,
     available_points: points.available_points ?? 0,
+    points_bonus_rate: level.points_bonus_rate ?? null,
   }
 }
 
@@ -210,9 +212,10 @@ export function subscribeMember(openid, body) {
   const cached = state.subscribeByToken.get(clientToken)
   if (cached) return { ...cached }
 
-  const targetId = String(body?.target_level_id ?? '')
+  // 契约字段名 level_id（旧版 target_level_id 已废弃，兼容读取）
+  const targetId = String(body?.level_id ?? body?.target_level_id ?? '')
   if (!/^\d+$/.test(targetId) || targetId === '0') {
-    throw Object.assign(new Error('缺少 target_level_id'), { code: 40000 })
+    throw Object.assign(new Error('缺少 level_id'), { code: 40000 })
   }
   const offers = buildOffers(state)
   const offer = offers.find((item) => String(item.member_level_id) === targetId)

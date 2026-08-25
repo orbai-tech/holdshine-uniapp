@@ -28,16 +28,6 @@ export function lineAmount(item: CartItem): number {
   return calcLocalCartLineAmount(item)
 }
 
-/**
- * 关联购物袋与当前门店。后端 store_id 在 CartRes.list[*] 是 string（真假后端均如此），
- * 当前门店 storeId 也是 string，直接字符串对比，禁用 Number() 以免大整数精度丢失。
- */
-function countForStore(list: CartRes[] | undefined, storeId: string | null): number {
-  if (storeId == null || !list?.length) return 0
-  const hit = list.find((row) => String(row.store_id) === storeId)
-  return hit?.item_count ?? 0
-}
-
 export const useCartStore = defineStore('cart', () => {
   const remote = ref<CartRes | null>(null)
   const overview = ref<CartOverviewRes | null>(null)
@@ -53,11 +43,25 @@ export const useCartStore = defineStore('cart', () => {
     if (remote.value) return parseAmount(remote.value.payable_amount)
     return items.value.reduce((sum, item) => sum + lineAmount(item), 0)
   })
-  const dineInCount = computed(() =>
-    countForStore(overview.value?.dine_in, useCatalogStore().currentStoreId),
+  // 真实后端 overview 为分组数组（堂食/外卖/商城，各自按门店一条，CartRes.item_count）。
+  // 咖啡角标取「当前门店 + 对应服务模式」的 item_count；商城角标取全部门店之和。
+  const catalogStore = useCatalogStore()
+  const currentStoreId = computed(() => catalogStore.currentStoreId)
+
+  function groupItemCount(group: CartRes[]): number {
+    const storeId = currentStoreId.value
+    if (storeId == null) return 0
+    const cart = group.find((row) => row.store_id === storeId)
+    return cart?.item_count ?? 0
+  }
+
+  const coffeeCount = computed(
+    () => groupItemCount(overview.value?.dine_in ?? []) + groupItemCount(overview.value?.takeaway ?? []),
   )
-  const takeawayCount = computed(() =>
-    countForStore(overview.value?.takeaway, useCatalogStore().currentStoreId),
+  const dineInCount = computed(() => groupItemCount(overview.value?.dine_in ?? []))
+  const takeawayCount = computed(() => groupItemCount(overview.value?.takeaway ?? []))
+  const mallCount = computed(() =>
+    (overview.value?.mall ?? []).reduce((sum, row) => sum + row.item_count, 0),
   )
 
   function applyCart(next: CartRes) {
@@ -330,8 +334,10 @@ export const useCartStore = defineStore('cart', () => {
     writeBusy,
     cartCount,
     cartTotal,
+    coffeeCount,
     dineInCount,
     takeawayCount,
+    mallCount,
     addToCart,
     refreshCart,
     refreshOverview,

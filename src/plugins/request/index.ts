@@ -11,8 +11,9 @@ interface RequestOptions<TData extends UniApp.RequestOptions['data'] = UniApp.Re
 let baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
 // #ifdef MP-WEIXIN
 // wx.request 只接受 http(s) 完整地址；相对路径 /api 会报 invalid url
+// 兜底指向本地真实后端；更换后端地址时，优先改 VITE_API_BASE_URL，并同步此处的默认值
 if (!/^https?:\/\//.test(baseURL)) {
-  baseURL = 'http://127.0.0.1:3780'
+  baseURL = 'http://127.0.0.1:8000'
 }
 // #endif
 

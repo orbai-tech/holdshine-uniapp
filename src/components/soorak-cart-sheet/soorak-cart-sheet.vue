@@ -95,7 +95,10 @@ function badgeText(count: number) {
         @click="onModeTap('dine_in')"
       >
         <text>堂食</text>
-        <text v-if="badgeText(cart.dineInCount)" class="cart-fulfill__badge">
+        <text
+          v-if="activeMode === 'dine_in' && badgeText(cart.dineInCount)"
+          class="cart-fulfill__badge"
+        >
           {{ badgeText(cart.dineInCount) }}
         </text>
       </view>
@@ -105,7 +108,10 @@ function badgeText(count: number) {
         @click="onModeTap('delivery')"
       >
         <text>外卖</text>
-        <text v-if="badgeText(cart.takeawayCount)" class="cart-fulfill__badge">
+        <text
+          v-if="activeMode === 'delivery' && badgeText(cart.takeawayCount)"
+          class="cart-fulfill__badge"
+        >
           {{ badgeText(cart.takeawayCount) }}
         </text>
       </view>

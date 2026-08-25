@@ -80,6 +80,8 @@ export interface OrderRes {
   pickup_code?: string | null
   customer_remark: string | null
   created_at: string | null
+  /** 契约新增：可支付截止时间，待支付订单前端倒计时用 */
+  pay_expire_at?: string | null
   appended?: boolean
   delivery?: OrderDeliveryRes | null
   items?: OrderItemRes[]

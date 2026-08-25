@@ -57,7 +57,7 @@ export const useSessionStore = defineStore('session', () => {
   const categoryId = ref<string | null>(null)
   const productId = ref<string | null>(null)
   const cartOpen = ref(false)
-  const loginSheetMode = ref<'login' | 'reconsent'>('login')
+  const loginSheetMode = ref<'login'>('login')
   const suppressTabBar = ref(false)
   const token = ref('')
   const user = ref<AuthUser | null>(null)
@@ -92,7 +92,6 @@ export const useSessionStore = defineStore('session', () => {
 
   const productOpen = computed(() => Boolean(productId.value))
   const loggedIn = computed(() => Boolean(token.value && user.value))
-  const needReconsent = computed(() => Boolean(loggedIn.value && user.value?.needReconsent))
   /** 原生 tabBar 始终隐藏，页面内纯文字导航由 chrome 渲染 */
   const tabBarVisible = computed(
     () => !productOpen.value && !cartOpen.value && !suppressTabBar.value,
@@ -236,8 +235,8 @@ export const useSessionStore = defineStore('session', () => {
     void refreshMemberRates()
   }
 
-  function openLoginPage(mode: 'login' | 'reconsent'): Promise<boolean> {
-    loginSheetMode.value = mode
+  function openLoginPage(): Promise<boolean> {
+    loginSheetMode.value = 'login'
     productId.value = null
     cartOpen.value = false
     if (loginWaitPromise) {
@@ -260,7 +259,6 @@ export const useSessionStore = defineStore('session', () => {
       applySession(token.value, profile)
       void hydrateDeliveryAddressFromApi()
       void refreshMemberRates()
-      if (profile.needReconsent) void requestReconsent()
     } catch {
       clearSession()
     }
@@ -285,7 +283,7 @@ export const useSessionStore = defineStore('session', () => {
         userHandbookVersion: consent.userHandbookVersion,
       })
       lastLoginMock.value = false
-      applySession(result.token, { ...result.user, needReconsent: false })
+      applySession(result.token, result.user)
       void hydrateDeliveryAddressFromApi()
       void refreshMemberRates()
     } finally {
@@ -301,18 +299,10 @@ export const useSessionStore = defineStore('session', () => {
     for (const resolve of waiters) resolve(ok)
   }
 
-  /** 未登录时打开登录页；已登录但需重签则走重签。 */
+  /** 未登录时打开登录页。 */
   function requestLogin(): Promise<boolean> {
-    if (loggedIn.value && !needReconsent.value) return Promise.resolve(true)
-    if (needReconsent.value) return requestReconsent()
-    return openLoginPage('login')
-  }
-
-  /** 协议升版后打开登录页重签，不清 token。 */
-  function requestReconsent(): Promise<boolean> {
-    if (!loggedIn.value) return openLoginPage('login')
-    if (!needReconsent.value) return Promise.resolve(true)
-    return openLoginPage('reconsent')
+    if (loggedIn.value) return Promise.resolve(true)
+    return openLoginPage()
   }
 
   /** 购物车/下单等写操作入口：已登录先验 /me；未登录或票失效则进入登录页。 */
@@ -326,13 +316,12 @@ export const useSessionStore = defineStore('session', () => {
           }
         })
       })
-      if (loggedIn.value && !needReconsent.value) return true
+      if (loggedIn.value) return true
     }
     if (loggedIn.value) {
       try {
         const profile = await fetchAuthProfile()
         applySession(token.value, profile)
-        if (profile.needReconsent) return requestReconsent()
         return true
       } catch {
         clearSession()
@@ -649,7 +638,6 @@ async function applyResolvedTable(res: {
     authBusy,
     lastLoginMock,
     loggedIn,
-    needReconsent,
     productOpen,
     tabBarVisible,
     fulfillmentMode,
@@ -667,7 +655,6 @@ async function applyResolvedTable(res: {
     refreshMemberRates,
     login,
     requestLogin,
-    requestReconsent,
     resolveLoginRequest,
     hasPendingLoginRequest,
     ensureLogin,

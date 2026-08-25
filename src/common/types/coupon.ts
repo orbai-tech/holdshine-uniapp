@@ -53,6 +53,10 @@ export interface MyCouponRes {
   coupon_no?: string
   coupon_status?: number
   coupon_status_label?: string
+  /** 契约新增：券种类标识（如 cash/discount/exchange） */
+  kind?: string | null
+  /** 契约新增：后端下发展示文案（如 "满减券"） */
+  display_label?: string | null
   valid_start_at?: string | null
   valid_end_at?: string | null
   used_at?: string | null
@@ -96,11 +100,26 @@ export interface MyCouponDetailRes {
   void_reason?: string | null
 }
 
+/** GET /coupons/mine 分页 tab（`coupon_status` 已废弃，契约仅支持以下四类） */
+export const COUPON_MINE_TAB = {
+  /** 全部 */
+  ALL: 'all',
+  /** 待领取 */
+  CLAIMABLE: 'claimable',
+  /** 待使用（旧 1 未使用 / 2 锁定 兼容映射到 usable） */
+  USABLE: 'usable',
+  /** 已过期（旧 4 兼容映射到 expired） */
+  EXPIRED: 'expired',
+} as const
+
+export type CouponMineTab = (typeof COUPON_MINE_TAB)[keyof typeof COUPON_MINE_TAB]
+
+/** 契约角标（all/claimable/usable/expired）；旧 mock 无 counts 时由前端本地兜底 */
 export interface MyCouponCounts {
-  unused: number
-  used: number
+  all: number
+  claimable: number
+  usable: number
   expired: number
-  total: number
 }
 
 export interface MyCouponListRes {

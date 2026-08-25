@@ -794,7 +794,7 @@ async function handle(req, res) {
   if (req.method === 'GET' && path === '/api/mp/customer/coupons/mine') {
     const session = requireMpSession(req, res)
     if (!session) return
-    ok(res, listMyCoupons(url.searchParams.get('coupon_status')))
+    ok(res, listMyCoupons(url.searchParams.get('tab')))
     return
   }
 

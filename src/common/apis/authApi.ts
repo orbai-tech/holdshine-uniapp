@@ -14,8 +14,9 @@ import { TOKEN_KEY } from '@/utils/authStorage'
 function apiBaseURL(): string {
   let base = String(import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
   // #ifdef MP-WEIXIN
+  // 兜底指向本地真实后端；更换后端地址时，优先改 VITE_API_BASE_URL，并同步此处的默认值
   if (!/^https?:\/\//.test(base)) {
-    base = 'http://127.0.0.1:3780'
+    base = 'http://127.0.0.1:8000'
   }
   // #endif
   return base
@@ -31,7 +32,6 @@ export function toAuthUser(info: MpUserInfoRes): AuthUser {
     memberNo: info.member_no || '',
     mobile: info.mobile || '',
     avatarPath: info.avatar_path || '',
-    needReconsent: Boolean(info.need_reconsent),
   }
 }
 

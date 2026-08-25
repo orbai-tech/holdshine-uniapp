@@ -4,6 +4,7 @@ import { onShow } from '@dcloudio/uni-app'
 import SoorakChrome from '@/components/soorak-chrome/soorak-chrome.vue'
 import SoorakButton from '@/components/soorak-button/soorak-button.vue'
 import SoorakSheet from '@/components/soorak-sheet/soorak-sheet.vue'
+import SoorakImage from '@/components/soorak-image/soorak-image.vue'
 import MallProductCard from '@/pages/select/components/mall-product-card.vue'
 import { getMallCatalog, getMallProduct } from '@/common/apis/mallApi'
 import type {
@@ -225,7 +226,7 @@ onShow(() => {
       </view>
       <view v-else-if="detail" class="mall-detail">
         <scroll-view v-if="detailImages.length" scroll-x class="mall-detail__gallery" :show-scrollbar="false">
-          <image
+          <SoorakImage
             v-for="(src, index) in detailImages"
             :key="`${src}-${index}`"
             :src="src"
@@ -269,7 +270,7 @@ onShow(() => {
 
         <view v-if="detailHeroSrc" class="mall-detail__block">
           <text class="t-label">商品详情</text>
-          <image
+          <SoorakImage
             :src="detailHeroSrc"
             mode="aspectFill"
             class="mall-detail__hero"

@@ -28,7 +28,6 @@ export function readStoredUser(): AuthUser | null {
     memberNo: user.memberNo || '',
     mobile: user.mobile || '',
     avatarPath: user.avatarPath || '',
-    needReconsent: Boolean(user.needReconsent),
   }
 }
 

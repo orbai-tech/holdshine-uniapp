@@ -88,9 +88,15 @@ export interface CartRes {
   items?: CartItemRes[]
 }
 
-/** 文档 DTO：GET /api/mp/customer/cart/overview */
+/**
+ * 文档 DTO：GET /api/mp/customer/cart/overview
+ * 真实后端返回有商品的购物车总览：堂食 / 外卖 / 商城，各自按门店一条。
+ */
 export interface CartOverviewRes {
+  /** 堂食购物车（按门店一条） */
   dine_in: CartRes[]
+  /** 外卖购物车（按门店一条） */
   takeaway: CartRes[]
+  /** 礼品商城购物车（按门店一条） */
   mall: CartRes[]
 }

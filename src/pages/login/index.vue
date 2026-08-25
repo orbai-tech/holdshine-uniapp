@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import { storeToRefs } from 'pinia'
 import {
+  fetchMpCurrentVersions,
   listAllLegalDocuments,
   listLegalDocuments,
   pickLegalCurrentVersions,
@@ -13,22 +14,18 @@ import { useSessionStore } from '@/stores/session'
 import { toErrorMessage } from '@/utils/errorMessage'
 
 const session = useSessionStore()
-const { loginSheetMode, authBusy } = storeToRefs(session)
+const { authBusy } = storeToRefs(session)
 const agreed = ref(false)
 const versions = ref<LegalDocVersions | null>(null)
 const versionsBusy = ref(false)
 
-const isReconsent = computed(() => loginSheetMode.value === 'reconsent')
 const canSubmit = computed(() => agreed.value && Boolean(versions.value) && !authBusy.value)
 /** 仅勾选协议后才挂 getPhoneNumber，否则点按钮只提示勾选 */
 const canRequestPhone = computed(() => canSubmit.value)
 
-const actionLabel = computed(() => {
-  if (authBusy.value) return isReconsent.value ? '提交中…' : '登录中…'
-  return isReconsent.value ? '重新同意并继续' : '一键登录'
-})
+const actionLabel = computed(() => (authBusy.value ? '登录中…' : '一键登录'))
 
-const laterLabel = computed(() => (isReconsent.value ? '稍后再说' : '暂不登录'))
+const laterLabel = '暂不登录'
 
 onLoad(() => {
   void loadVersions()
@@ -48,8 +45,10 @@ onUnload(() => {
  * 1. 先打超管侧 `/api/web/super-admin/legal/documents` 拿当前生效版。
  *    该接口返回的是**全部历史版本**，必须再用 is_current=true 过滤，
  *    否则传旧版本号会被后端 41000 「隐私协议已更新」拦截。
- * 2. 超管侧失败（401/403/网络等）时，兜底用 mp 公开清单 `listLegalDocuments`。
- *    mp 清单没有 is_current 字段，默认就是当前版。
+ * 2. 超管侧失败（401/403/网络等）或数据异常时，优先用 mp 单文档接口
+ *    `getLegalDocument(doc_type)` 并发拉两份——顾客端拿到的必然是当前生效版，
+ *    不会混入历史版本。
+ * 3. 单文档接口也失败时，最后退回 mp 公开清单 `listLegalDocuments` 取最新一条。
  */
 async function loadVersions() {
   versionsBusy.value = true
@@ -59,15 +58,18 @@ async function loadVersions() {
       const adminList = await listAllLegalDocuments()
       next = pickLegalCurrentVersions(adminList)
       if (!next) {
-        // 超管侧清单存在但没有 is_current=true（异常数据），兜底 mp
-        const mpList = await listLegalDocuments()
-        next = pickLegalVersions(mpList)
+        // 超管侧清单存在但没有 is_current=true（异常数据），兜底 mp 单文档接口
+        next = await fetchMpCurrentVersions()
       }
     } catch (adminError) {
       console.warn(
-        '[元-登录] 超管侧协议清单加载失败，回退 mp 公开清单',
+        '[元-登录] 超管侧协议清单加载失败，回退 mp 当前版接口',
         toErrorMessage(adminError, ''),
       )
+      next = await fetchMpCurrentVersions()
+    }
+    if (!next) {
+      // 单文档接口失败时，最后退回 mp 公开清单取最新一条
       const mpList = await listLegalDocuments()
       next = pickLegalVersions(mpList)
     }
@@ -161,7 +163,7 @@ async function finishLogin(wxPhoneCode?: string) {
       uni.showToast({ title: '登录失败', icon: 'none' })
       return
     }
-    uni.showToast({ title: isReconsent.value ? '已重新同意' : '登录成功', icon: 'none' })
+    uni.showToast({ title: '登录成功', icon: 'none' })
     session.resolveLoginRequest(true)
     uni.navigateBack({ fail() {} })
   } catch (error) {
@@ -199,7 +201,6 @@ async function onConfirmLogin() {
         <text class="login-logo__mark">元</text>
       </view>
       <text class="login-brand">元气善筑</text>
-      <text v-if="isReconsent" class="login-caption">请重新同意协议</text>
 
       <!-- #ifdef MP-WEIXIN -->
       <button
@@ -295,13 +296,6 @@ async function onConfirmLogin() {
   font-size: 48rpx;
   font-weight: 600;
   letter-spacing: 0.18em;
-}
-
-.login-caption {
-  margin-top: 16rpx;
-  font-size: 24rpx;
-  color: $mp-text-2;
-  letter-spacing: 0.08em;
 }
 
 .login-btn {

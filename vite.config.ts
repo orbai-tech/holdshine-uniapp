@@ -14,8 +14,10 @@ export default defineConfig({
     port: 5173,
     strictPort: false,
     proxy: {
+      // H5 开发把 /api 代理到真实后端；更换后端地址时同步修改 target。
+      // 前端接口路径本身带 /api 前缀，因此 rewrite 去掉最外层 /api 后透传。
       '/api': {
-        target: 'http://127.0.0.1:3780',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         rewrite: (requestPath) => requestPath.replace(/^\/api/, ''),
       },

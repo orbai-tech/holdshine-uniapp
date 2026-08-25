@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { computed, onBeforeUnmount, ref } from 'vue'
+import { onHide, onShow } from '@dcloudio/uni-app'
 import SoorakChrome from '@/components/soorak-chrome/soorak-chrome.vue'
 import SoorakButton from '@/components/soorak-button/soorak-button.vue'
 import SoorakSheet from '@/components/soorak-sheet/soorak-sheet.vue'
@@ -49,6 +49,36 @@ const detailAmountRows = computed(() =>
   detail.value ? orderAmountRows(detail.value) : [],
 )
 const dispatchTraces = computed(() => (dispatch.value?.traces ?? []).slice(0, 8))
+
+/** 待支付订单的支付截止倒计时（契约 pay_expire_at） */
+const now = ref(Date.now())
+let payTimer: ReturnType<typeof setInterval> | null = null
+
+function startPayCountdown() {
+  stopPayCountdown()
+  payTimer = setInterval(() => {
+    now.value = Date.now()
+  }, 1000)
+}
+
+function stopPayCountdown() {
+  if (payTimer != null) {
+    clearInterval(payTimer)
+    payTimer = null
+  }
+}
+
+function payRemainText(order: OrderRes): string {
+  if (!canCancelOrder(order.order_status) || !order.pay_expire_at) return ''
+  // iOS 对 "YYYY-MM-DD HH:mm:ss" 解析失败，统一转 "/" 分隔
+  const deadline = new Date(String(order.pay_expire_at).replace(/-/g, '/')).getTime()
+  if (!Number.isFinite(deadline)) return ''
+  const remainSec = Math.max(0, Math.floor((deadline - now.value) / 1000))
+  if (remainSec <= 0) return '支付已超时，订单即将关闭'
+  const minutes = Math.floor(remainSec / 60)
+  const seconds = String(remainSec % 60).padStart(2, '0')
+  return `剩余支付时间 ${minutes}:${seconds}`
+}
 
 function clearDispatch() {
   dispatch.value = null
@@ -217,8 +247,16 @@ async function onPay(order: OrderRes) {
 
 onShow(() => {
   session.hideNativeTabBar()
+  now.value = Date.now()
+  startPayCountdown()
   void load()
 })
+
+onHide(() => {
+  stopPayCountdown()
+})
+
+onBeforeUnmount(stopPayCountdown)
 </script>
 
 <template>
@@ -259,6 +297,9 @@ onShow(() => {
           </view>
           <text class="order-card__status">{{ orderStatusLabel(order.order_status) }}</text>
         </view>
+        <text v-if="payRemainText(order)" class="order-card__pay-remain">
+          {{ payRemainText(order) }}
+        </text>
         <view class="order-card__items">
           <view
             v-for="item in order.items || []"
@@ -306,6 +347,9 @@ onShow(() => {
           </text>
         </view>
         <text class="order-detail__no">单号 {{ detail.order_no }}</text>
+        <text v-if="detail && payRemainText(detail)" class="order-card__pay-remain">
+          {{ payRemainText(detail) }}
+        </text>
         <text v-if="detailLoading" class="t-caption order-detail__hint">刷新中…</text>
 
         <view class="order-detail__section">
@@ -418,6 +462,13 @@ onShow(() => {
   font-size: 24rpx;
   color: $mp-moss;
   letter-spacing: 0.06em;
+}
+
+.order-card__pay-remain {
+  display: block;
+  margin: -8rpx 0 16rpx;
+  font-size: 22rpx;
+  color: #c2564a;
 }
 
 .order-card__items {

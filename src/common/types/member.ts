@@ -12,6 +12,8 @@ export interface MemberSummaryRes {
   is_active?: boolean
   benefits_description?: string | null
   available_points?: number
+  /** 契约新增：积分加成比例（100=无加成，110=110%） */
+  points_bonus_rate?: number | null
 }
 
 /** 文档 DTO：可购档位单条 */
@@ -31,6 +33,8 @@ export interface MemberLevelOfferRes {
   pay_amount?: string | null
   remaining_days?: number | null
   low_residual_amount?: string | null
+  /** 契约新增：积分加成比例（100=无加成，110=110%） */
+  points_bonus_rate?: number | null
 }
 
 export interface MemberLevelOfferListRes {
@@ -53,7 +57,7 @@ export const MEMBER_PAY_STATUS = {
 
 /** 文档 DTO：POST /api/mp/customer/member/subscribe */
 export interface MemberSubscribeReq {
-  /** 真契约 string；18 位雪花大整数 */
+  /** 真契约 string；18 位雪花大整数（真实后端字段名 target_level_id） */
   target_level_id: string
   client_token: string
 }

@@ -131,21 +131,23 @@ export function getCart(openid, storeId, serviceMode = 1) {
   return carts.get(cartKey(openid, storeId, mode)) || emptyCart(storeId, mode)
 }
 
-/** 有商品的购物车总览：堂食 / 外卖 / 商城，各自按门店一条。 */
+/**
+ * 有商品的购物车总览（契约 v2：数量结构）。
+ * coffee_qty：咖啡购物车（堂食 1 / 外卖 3）商品总数，按当前门店；
+ * mall_qty：礼品商城购物车（4）商品总数，全局。
+ */
 export function getCartOverview(openid) {
-  const dine_in = []
-  const takeaway = []
-  const mall = []
+  let coffeeQty = 0
+  let mallQty = 0
   const prefix = `${openid}:`
   for (const [key, cart] of carts.entries()) {
     if (!key.startsWith(prefix)) continue
     if (!cart || !cart.item_count) continue
     const mode = Number(cart.service_mode)
-    if (mode === 1) dine_in.push(cart)
-    else if (mode === 3) takeaway.push(cart)
-    else if (mode === 4) mall.push(cart)
+    if (mode === 1 || mode === 3) coffeeQty += cart.item_count
+    else if (mode === 4) mallQty += cart.item_count
   }
-  return { dine_in, takeaway, mall }
+  return { coffee_qty: coffeeQty, mall_qty: mallQty }
 }
 
 /** 规格询价：与加购同价规则，不写入购物车。ID 全部 string 透传（雪花大整数） */
@@ -446,6 +448,10 @@ export function createOrderFromCart(openid, body) {
     pickup_code: null,
     customer_remark: body.customer_remark == null ? null : String(body.customer_remark),
     created_at: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    pay_expire_at: new Date(Date.now() + 15 * 60 * 1000)
+      .toISOString()
+      .replace('T', ' ')
+      .slice(0, 19),
     appended: false,
     delivery:
       serviceMode === 3
@@ -547,6 +553,10 @@ export function createMemberCardOrder(openid, { payable_amount, title } = {}) {
     pickup_code: null,
     customer_remark: null,
     created_at: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    pay_expire_at: new Date(Date.now() + 15 * 60 * 1000)
+      .toISOString()
+      .replace('T', ' ')
+      .slice(0, 19),
     appended: false,
     delivery: null,
     can_restock: false,

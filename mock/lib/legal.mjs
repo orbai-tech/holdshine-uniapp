@@ -13,6 +13,11 @@ function seed() {
       '<p>一、我们收集的信息包括微信授权凭证、账号资料、交易与履约信息、位置信息、设备与日志信息。我们仅在实现服务所必需的范围内使用上述信息。</p>' +
       '<p>如对本政策有疑问，请通过小程序「联系客服」与我们联系。</p>',
     pdf_url: '/uploads/legal/privacy_policy/20260817_000000_20260817.pdf',
+    // 契约新增：PDF 页图，前端优先展示（mock 以商品图代替真实协议页图）
+    content_images: [
+      '/static/images/products/goji.jpg',
+      '/static/images/products/longan.jpg',
+    ],
     published_at: '2026-08-17 00:00:00',
   })
   documents.set(3, {
@@ -25,6 +30,12 @@ function seed() {
       '<p>本服务提供门店点单、外卖配送、选物购买、会员积分与优惠券等功能。具体商品、价格、库存与营业时间以页面实时展示为准。</p>' +
       '<p>如对本须知有疑问，请通过小程序内「联系客服」与我们联系。</p>',
     pdf_url: '/uploads/legal/user_handbook/20260817_000000_20260817.pdf',
+    // 契约新增：PDF 页图，前端优先展示（mock 以商品图代替真实协议页图）
+    content_images: [
+      '/static/images/products/latte.jpg',
+      '/static/images/products/americano.jpg',
+      '/static/images/products/pourover.jpg',
+    ],
     published_at: '2026-08-17 00:00:00',
   })
 }

@@ -29,7 +29,6 @@ export interface MpUserInfoRes {
   /** 真契约 string；18 位雪花大整数 */
   member_level_id: string | null
   last_login_at: string | null
-  need_reconsent?: boolean
 }
 
 export interface MpLoginRes {
@@ -60,7 +59,6 @@ export interface AuthUser {
   memberNo: string
   mobile: string
   avatarPath: string
-  needReconsent: boolean
 }
 
 export interface LoginResult {

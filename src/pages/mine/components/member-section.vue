@@ -37,14 +37,21 @@ const emit = defineEmits<{
 
 const expandedLevelIds = ref<Record<string, boolean>>({})
 
+/** 契约新增：积分加成（100=无加成，110=110%），>100 时展示 "+10%" */
+function pointsBonusPerk(rate: number | null | undefined): string | null {
+  if (rate == null || rate <= 100) return null
+  return `积分获取 +${rate - 100}%`
+}
+
 const summaryPerks = computed(() => {
   const current = props.summary
   if (!current) return []
+  const bonus = pointsBonusPerk(current.points_bonus_rate)
   const fromDesc = splitBenefitsDescription(current.benefits_description)
-  if (fromDesc.length) return fromDesc
+  if (fromDesc.length) return bonus ? [...fromDesc, bonus] : fromDesc
   const coffee = discountRateLabel(current.coffee_discount_rate, '饮品 ')
   const mall = discountRateLabel(current.mall_discount_rate, '商城 ')
-  return [coffee, mall].filter(Boolean)
+  return [coffee, mall, bonus].filter(Boolean)
 })
 
 const summaryMeta = computed(() => {
@@ -75,11 +82,12 @@ function levelOfferMeta(level: MemberLevelOfferRes) {
 }
 
 function levelOfferPerks(level: MemberLevelOfferRes) {
+  const bonus = pointsBonusPerk(level.points_bonus_rate)
   const fromDesc = splitBenefitsDescription(level.benefits_description)
-  if (fromDesc.length) return fromDesc
+  if (fromDesc.length) return bonus ? [...fromDesc, bonus] : fromDesc
   const coffee = discountRateLabel(level.coffee_discount_rate, '饮品 ')
   const mall = discountRateLabel(level.mall_discount_rate, '商城 ')
-  return [coffee, mall].filter(Boolean)
+  return [coffee, mall, bonus].filter(Boolean)
 }
 
 function subscriptionTitle(row: MyMemberSubscriptionRes) {

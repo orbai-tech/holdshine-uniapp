@@ -11,6 +11,8 @@ const SAMPLE_COUPONS = [
     coupon_no: 'CN9001',
     coupon_status: 1,
     coupon_status_label: '未使用',
+    kind: 'full_reduction',
+    display_label: '满减券',
     valid_start_at: null,
     valid_end_at: null,
     used_at: null,
@@ -28,6 +30,8 @@ const SAMPLE_COUPONS = [
     coupon_no: 'CN9002',
     coupon_status: 1,
     coupon_status_label: '未使用',
+    kind: 'full_reduction',
+    display_label: '满减券',
     valid_start_at: null,
     valid_end_at: null,
     used_at: null,
@@ -45,6 +49,8 @@ const SAMPLE_COUPONS = [
     coupon_no: 'CN9003',
     coupon_status: 1,
     coupon_status_label: '未使用',
+    kind: 'full_reduction',
+    display_label: '满减券',
     valid_start_at: null,
     valid_end_at: null,
     used_at: null,
@@ -116,21 +122,23 @@ const COUPON_STATUS_USED = 3
 const COUPON_STATUS_EXPIRED = 4
 const COUPON_STATUS_VOIDED = 5
 
+/** 契约角标：all 全部 / claimable 待领取 / usable 待使用 / expired 已过期（已作废与已使用不计入角标） */
 function computeCouponCounts(coupons) {
-  let unused = 0
-  let used = 0
+  let all = 0
+  let claimable = 0
+  let usable = 0
   let expired = 0
   for (const item of coupons) {
     if (item.coupon_status === COUPON_STATUS_VOIDED) continue
-    if (item.coupon_status === COUPON_STATUS_UNUSED) unused += 1
-    else if (item.coupon_status === COUPON_STATUS_USED) used += 1
+    all += 1
+    if (item.coupon_status === COUPON_STATUS_UNUSED) usable += 1
     else if (item.coupon_status === COUPON_STATUS_EXPIRED) expired += 1
   }
   return {
-    unused,
-    used,
+    all,
+    claimable,
+    usable,
     expired,
-    total: unused + used + expired,
   }
 }
 
@@ -203,15 +211,30 @@ function evaluateCoupon(coupon, subtotal) {
   }
 }
 
-/** 空 status：除已作废外全部；返回 counts 为全量统计（不受筛选影响） */
-export function listMyCoupons(couponStatus) {
-  const statusFilter =
-    couponStatus == null || couponStatus === '' ? null : Number(couponStatus)
+/**
+ * 我的优惠券。分页参数 tab（契约，coupon_status 已废弃）：
+ * all 全部 / claimable 待领取 / usable 待使用 / expired 已过期。
+ * 返回 counts 为全量统计（不受筛选影响）。
+ */
+export function listMyCoupons(tab) {
+  const allowed = new Set(['all', 'claimable', 'usable', 'expired'])
+  const filter =
+    tab == null || tab === '' || !allowed.has(tab) ? 'all' : String(tab)
   const list = []
   for (const item of SAMPLE_COUPONS) {
     if (item.coupon_status === COUPON_STATUS_VOIDED) continue
-    if (statusFilter != null && item.coupon_status !== statusFilter) continue
-    list.push(cloneCoupon(item))
+    if (filter === 'all') {
+      list.push(cloneCoupon(item))
+      continue
+    }
+    if (filter === 'usable' && item.coupon_status === COUPON_STATUS_UNUSED) {
+      list.push(cloneCoupon(item))
+      continue
+    }
+    if (filter === 'expired' && item.coupon_status === COUPON_STATUS_EXPIRED) {
+      list.push(cloneCoupon(item))
+      continue
+    }
   }
   return {
     list,
