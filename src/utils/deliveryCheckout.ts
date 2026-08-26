@@ -3,10 +3,10 @@ import { parseAmount } from '@/utils/money'
 
 /**
  * 产品默认配送通道为微信即时配送（wechat）。
- * 当前 mock 联调仍走 mock 询价/履约；正式联调改为 'wechat' 并接真实运力接口。
+ * 本地 mock 后端已删除，联调走真实后端的微信即时配送通道。
  */
 export const PREFERRED_DELIVERY_PROVIDER = 'wechat' as const
-export const ACTIVE_DELIVERY_PROVIDER: 'mock' | 'wechat' = 'mock'
+export const ACTIVE_DELIVERY_PROVIDER: 'mock' | 'wechat' = 'wechat'
 
 /** 可选可用渠道：enabled 且 ready */
 export function pickReadyChannels(list: DeliveryChannelRes[] | null | undefined): DeliveryChannelRes[] {

@@ -35,6 +35,14 @@ const featured = computed(() => {
   return (tagged.length ? tagged : catalog.products).slice(0, 4)
 })
 
+/** 当前门店是否可下单（休息/暂停接单时首页点单入口禁用） */
+const canOrder = computed(() => catalog.canOrder)
+
+/** 休息中提示（点击禁用入口时反馈） */
+function toastResting() {
+  uni.showToast({ title: '门店休息中，暂不可点单', icon: 'none' })
+}
+
 onShow(() => {
   session.hideNativeTabBar()
   void catalog.ensureLoaded()
@@ -151,11 +159,18 @@ function onScanDraftInput(event: { detail?: { value?: string } }) {
           </view>
           <text class="home-hero__belief">{{ catalog.brand.belief }}</text>
           <view class="home-hero__actions">
-            <SoorakButton @click="session.startDineIn()">到店堂食</SoorakButton>
-            <view class="home-scan-btn" hover-class="home-scan-btn--on" @tap="startScanTable">
+            <SoorakButton :disabled="!canOrder" @click="session.startDineIn()">到店堂食</SoorakButton>
+            <view
+              class="home-scan-btn"
+              :class="{ 'home-scan-btn--off': !canOrder }"
+              :hover-class="canOrder ? 'home-scan-btn--on' : ''"
+              @tap="canOrder ? startScanTable() : toastResting()"
+            >
               <text>扫桌码</text>
             </view>
-            <SoorakButton variant="secondary" @click="session.startDelivery()">外卖配送</SoorakButton>
+            <SoorakButton variant="secondary" :disabled="!canOrder" @click="session.startDelivery()">
+              外卖配送
+            </SoorakButton>
           </view>
         </view>
       </view>
@@ -183,7 +198,8 @@ function onScanDraftInput(event: { detail?: { value?: string } }) {
             v-for="ritual in catalog.rituals"
             :key="ritual.id"
             class="ritual-card"
-            @click="session.goMenuWithRitual(ritual.id)"
+            :class="{ 'ritual-card--off': !canOrder }"
+            @click="canOrder ? session.goMenuWithRitual(ritual.id) : toastResting()"
           >
             <image :src="covers[ritual.id]" class="ritual-card__img" mode="aspectFill" />
             <text class="ritual-card__title">{{ ritual.title }}</text>
@@ -195,14 +211,15 @@ function onScanDraftInput(event: { detail?: { value?: string } }) {
       <view class="home-block">
         <view class="home-block__head">
           <text class="t-section">招牌精选</text>
-          <view class="link" @click="session.goMenu()">全部</view>
+          <view class="link" @click="canOrder ? session.goMenu() : toastResting()">全部</view>
         </view>
         <scroll-view scroll-x class="mp-product-rail" :show-scrollbar="false">
           <view
             v-for="item in featured"
             :key="item.id"
             class="mp-product-rail__item"
-            @click="session.openProduct(item.id)"
+            :class="{ 'mp-product-rail__item--off': !canOrder }"
+            @click="canOrder ? session.openProduct(item.id) : toastResting()"
           >
             <image :src="item.img" mode="aspectFill" class="mp-product-rail__img" />
             <text class="mp-product-rail__name">{{ item.name }}</text>
@@ -334,6 +351,10 @@ function onScanDraftInput(event: { detail?: { value?: string } }) {
   transform: scale(0.98);
 }
 
+.home-scan-btn--off {
+  opacity: 0.45;
+}
+
 .home-hero__actions :deep(.mp-btn--secondary) {
   color: $mp-paper;
   box-shadow: inset 0 0 0 1rpx rgba(247, 244, 238, 0.45);
@@ -413,6 +434,10 @@ function onScanDraftInput(event: { detail?: { value?: string } }) {
   color: $mp-paper;
 }
 
+.ritual-card--off {
+  opacity: 0.55;
+}
+
 .ritual-card__img {
   position: absolute;
   left: 0;
@@ -481,6 +506,10 @@ function onScanDraftInput(event: { detail?: { value?: string } }) {
   margin-right: 24rpx;
   vertical-align: top;
   white-space: normal;
+}
+
+.mp-product-rail__item--off {
+  opacity: 0.55;
 }
 
 .mp-product-rail__img {

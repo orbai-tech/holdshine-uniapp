@@ -57,6 +57,9 @@ const deliveryQuoteHint = ref('')
 const CHECKOUT_DEBOUNCE_MS = 300
 let deliveryQuoteSeq = 0
 
+/** 当前门店是否可下单；休息/暂停接单时禁止提交支付 */
+const canOrder = computed(() => catalog.canOrder)
+
 const usingRemote = computed(() => Boolean(cart.remote))
 const empty = computed(() =>
   usingRemote.value ? cart.remoteItems.length === 0 : cart.items.length === 0,
@@ -189,7 +192,7 @@ async function refreshDeliveryQuote() {
   const seq = ++deliveryQuoteSeq
   deliveryQuoteBusy.value = true
   try {
-    // 产品默认微信即时配送；当前 mock 询价仍走本地 mock 通道（见 ACTIVE_DELIVERY_PROVIDER）
+    // 产品默认微信即时配送；询价走真实后端（见 ACTIVE_DELIVERY_PROVIDER）
     const quote = await quoteDelivery({
       store_id: storeId,
       address_id: addressId,
@@ -437,6 +440,10 @@ function pickCoupon(coupon: MyCouponRes | null) {
 
 async function submitPay() {
   if (cart.writeBusy) return
+  if (!canOrder.value) {
+    uni.showToast({ title: '门店休息中，暂不可下单', icon: 'none' })
+    return
+  }
   if (empty.value) {
     uni.showToast({ title: '购物袋是空的', icon: 'none' })
     return
@@ -642,8 +649,13 @@ async function submitPay() {
         <text class="ck-bar__count">共{{ itemCount }}件 合计</text>
         <text class="ck-bar__price">¥{{ displayTotalText }}</text>
       </view>
-      <view class="ck-bar__btn" hover-class="ck-bar__btn--active" @click="submitPay">
-        <text>提交支付</text>
+      <view
+        class="ck-bar__btn"
+        :class="{ 'ck-bar__btn--off': !canOrder }"
+        :hover-class="canOrder ? 'ck-bar__btn--active' : ''"
+        @click="submitPay"
+      >
+        <text>{{ canOrder ? '提交支付' : '休息中' }}</text>
       </view>
     </view>
 
@@ -1048,6 +1060,11 @@ async function submitPay() {
 .ck-bar__btn--active {
   opacity: 0.92;
   background: $mp-moss-deep;
+}
+
+.ck-bar__btn--off {
+  background: $mp-stone;
+  color: $mp-text-3;
 }
 
 .table-list {

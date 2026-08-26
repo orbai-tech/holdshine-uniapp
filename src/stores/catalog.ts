@@ -1,7 +1,14 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { getStoreMenu, menuToCatalog } from '@/common/apis/catalogApi'
-import { listMpStores, pickNearestStore, storeDistanceLabel, storeIdOf } from '@/common/apis/storeApi'
+import {
+  listMpStores,
+  pickNearestStore,
+  storeCanAcceptOrders,
+  storeDistanceLabel,
+  storeIdOf,
+  storeIsVisible,
+} from '@/common/apis/storeApi'
 import type { BrandInfo, MenuCategory, Product, Ritual } from '@/common/types/catalog'
 import type { StoreRes } from '@/common/types/store'
 import { getUserLocation } from '@/utils/geo'
@@ -36,9 +43,10 @@ export const useCatalogStore = defineStore('catalog', () => {
       latitude: here?.latitude,
       longitude: here?.longitude,
     })
-    const stores = (page.list ?? []).filter((item) => item.status === 1)
+    // 可见门店（排除已停用）；休息/暂停接单的门店保留在列表并可切换
+    const stores = (page.list ?? []).filter((item) => storeIsVisible(item))
     if (!stores.length) {
-      throw new Error('暂无营业门店')
+      throw new Error('暂无门店')
     }
     const currentId = currentStoreId.value
     const kept = currentId != null ? stores.find((item) => storeIdOf(item) === currentId) : undefined
@@ -47,7 +55,10 @@ export const useCatalogStore = defineStore('catalog', () => {
       applyBrandStore(kept, storeDistanceLabel(kept, here))
       return
     }
-    const picked = pickNearestStore(stores, here)
+    // 自动选店时优先选择「营业中」的最近门店；若无营业中门店则退回最近可见门店
+    const orderable = stores.filter((item) => storeCanAcceptOrders(item))
+    const candidates = orderable.length ? orderable : stores
+    const picked = pickNearestStore(candidates, here)
     currentStore.value = picked
     currentStoreId.value = storeIdOf(picked)
     applyBrandStore(picked, storeDistanceLabel(picked, here))
@@ -104,6 +115,9 @@ export const useCatalogStore = defineStore('catalog', () => {
     return products.value.find((item) => item.id === id) ?? null
   }
 
+  /** 当前门店是否可下单（休息/暂停接单时为 false，用于各下单入口置灰禁用） */
+  const canOrder = computed(() => storeCanAcceptOrders(currentStore.value))
+
   return {
     brand,
     rituals,
@@ -113,6 +127,7 @@ export const useCatalogStore = defineStore('catalog', () => {
     currentStoreId,
     loading,
     errorText,
+    canOrder,
     ensureStore,
     ensureLoaded,
     selectStore,

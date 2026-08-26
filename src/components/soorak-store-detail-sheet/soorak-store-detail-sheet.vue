@@ -11,7 +11,7 @@ export default {
 import { computed, ref, watch } from 'vue'
 import SoorakSheet from '@/components/soorak-sheet/soorak-sheet.vue'
 import SoorakButton from '@/components/soorak-button/soorak-button.vue'
-import { getStoreDetail, storeIsOpenNow, storeStatusLabel } from '@/common/apis/storeApi'
+import { getStoreDetail, storeCanAcceptOrders, storeStatusLabel } from '@/common/apis/storeApi'
 import type { MpStoreDetailRes } from '@/common/types/store'
 import { useSessionStore } from '@/stores/session'
 import { toErrorMessage } from '@/utils/errorMessage'
@@ -40,7 +40,8 @@ const addressLine = computed(() => {
 })
 
 const openLabel = computed(() => storeStatusLabel(detail.value))
-const openNow = computed(() => storeIsOpenNow(detail.value))
+/** 详情接口返回 detail.status；营业中(status=1)才允许点单 */
+const canOrder = computed(() => storeCanAcceptOrders(detail.value))
 
 const capabilityText = computed(() => {
   if (!detail.value) return ''
@@ -109,7 +110,7 @@ function feeText(value: string | null | undefined, suffix = '元') {
     <view v-else-if="detail" class="store-detail">
       <view class="store-detail__head">
         <text class="store-detail__name">{{ detail.store_name }}</text>
-        <text class="store-detail__status" :class="{ 'is-on': openNow }">
+        <text class="store-detail__status" :class="{ 'is-on': canOrder }">
           {{ openLabel }}
         </text>
       </view>
@@ -148,7 +149,9 @@ function feeText(value: string | null | undefined, suffix = '元') {
     </view>
 
     <template v-if="detail && !loading && !errorText" #footer>
-      <SoorakButton @click="onGoMenu">去点单</SoorakButton>
+      <SoorakButton :disabled="!canOrder" @click="onGoMenu">
+        {{ canOrder ? '去点单' : '休息中' }}
+      </SoorakButton>
     </template>
   </SoorakSheet>
 </template>

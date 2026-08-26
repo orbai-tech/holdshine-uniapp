@@ -62,7 +62,6 @@ export const useSessionStore = defineStore('session', () => {
   const token = ref('')
   const user = ref<AuthUser | null>(null)
   const authBusy = ref(false)
-  const lastLoginMock = ref(false)
 
   const fulfillmentMode = ref<FulfillmentMode | null>(null)
   const pickupSubMode = ref<PickupSubMode>('dine_in')
@@ -219,7 +218,6 @@ export const useSessionStore = defineStore('session', () => {
   function clearSession() {
     token.value = ''
     user.value = null
-    lastLoginMock.value = false
     clearMemberRates()
     clearSessionStorage()
   }
@@ -282,7 +280,6 @@ export const useSessionStore = defineStore('session', () => {
         agreeUserHandbook: true,
         userHandbookVersion: consent.userHandbookVersion,
       })
-      lastLoginMock.value = false
       applySession(result.token, result.user)
       void hydrateDeliveryAddressFromApi()
       void refreshMemberRates()
@@ -636,7 +633,6 @@ async function applyResolvedTable(res: {
     token,
     user,
     authBusy,
-    lastLoginMock,
     loggedIn,
     productOpen,
     tabBarVisible,

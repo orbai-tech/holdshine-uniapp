@@ -30,6 +30,9 @@ const activeMode = computed<FulfillmentMode>(() =>
   session.fulfillmentMode === 'delivery' ? 'delivery' : 'dine_in',
 )
 
+/** 当前门店是否可下单；休息/暂停接单时禁止结算 */
+const canOrder = computed(() => catalog.canOrder)
+
 /** 购物袋底部合计：原价 → 会员折（饮品两位小数） */
 const displayCartTotal = computed(() => {
   const original = cart.cartTotal
@@ -57,6 +60,10 @@ function goMenu() {
 }
 
 function goCheckout() {
+  if (!canOrder.value) {
+    uni.showToast({ title: '门店休息中，暂不可下单', icon: 'none' })
+    return
+  }
   session.setCartOpen(false)
   uni.navigateTo({
     url: '/pages/checkout/index',
@@ -169,8 +176,13 @@ function badgeText(count: number) {
           <text class="t-caption">合计</text>
           <text class="ps-price">¥{{ displayCartTotal }}</text>
         </view>
-        <view class="cart-cta__btn" hover-class="cart-cta__btn--active" @click="goCheckout">
-          <text class="cart-cta__btn-label">确认下单</text>
+        <view
+          class="cart-cta__btn"
+          :class="{ 'cart-cta__btn--off': !canOrder }"
+          :hover-class="canOrder ? 'cart-cta__btn--active' : ''"
+          @click="goCheckout"
+        >
+          <text class="cart-cta__btn-label">{{ canOrder ? '确认下单' : '休息中' }}</text>
         </view>
       </view>
     </template>
@@ -342,6 +354,14 @@ function badgeText(count: number) {
   opacity: 0.92;
   transform: scale(0.98);
   background: $mp-moss-deep;
+}
+
+.cart-cta__btn--off {
+  background: $mp-stone;
+}
+
+.cart-cta__btn--off .cart-cta__btn-label {
+  color: $mp-text-3;
 }
 
 .cart-cta__btn-label {

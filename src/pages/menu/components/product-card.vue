@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { Product } from '@/common/types/catalog'
+import { useCatalogStore } from '@/stores/catalog'
 import { useSessionStore } from '@/stores/session'
 
 const props = defineProps<{
@@ -7,10 +9,22 @@ const props = defineProps<{
 }>()
 
 const session = useSessionStore()
+const catalog = useCatalogStore()
+
+/** 当前门店是否可下单；休息/暂停接单时点击商品不打开加购层 */
+const canOrder = computed(() => catalog.canOrder)
+
+function onTap() {
+  if (!canOrder.value) {
+    uni.showToast({ title: '门店休息中，暂不可点单', icon: 'none' })
+    return
+  }
+  session.openProduct(props.product.id)
+}
 </script>
 
 <template>
-  <view class="mp-product-card" @click="session.openProduct(props.product.id)">
+  <view class="mp-product-card" :class="{ 'mp-product-card--off': !canOrder }" @click="onTap">
     <view class="mp-product-card__media">
       <image :src="product.img" mode="aspectFill" class="mp-product-card__img" />
       <text v-if="product.tag" class="mp-product-card__tag">{{ product.tag }}</text>
@@ -21,7 +35,7 @@ const session = useSessionStore()
       <text class="mp-product-card__scene">{{ product.scene }}</text>
       <view class="mp-product-card__meta">
         <text class="mp-product-card__price">¥{{ product.price }}</text>
-        <text class="mp-product-card__spec">选规格</text>
+        <text class="mp-product-card__spec">{{ canOrder ? '选规格' : '休息中' }}</text>
       </view>
     </view>
   </view>
@@ -34,6 +48,10 @@ const session = useSessionStore()
   width: 100%;
   padding: 24rpx 0;
   border-bottom: 1rpx solid $mp-border;
+}
+
+.mp-product-card--off {
+  opacity: 0.55;
 }
 
 .mp-product-card__media {
@@ -99,5 +117,9 @@ const session = useSessionStore()
   font-size: 22rpx;
   letter-spacing: 0.08em;
   color: $mp-brass;
+}
+
+.mp-product-card--off .mp-product-card__spec {
+  color: $mp-text-3;
 }
 </style>

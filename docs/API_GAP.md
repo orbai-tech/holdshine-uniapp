@@ -5,12 +5,12 @@
 > **对接标记（2026-08-15 维护，对照当前** `src/`**）：**  
 >
 > - `✅` = 已前后端对接且有真实调用点（相对真契约路径）  
-> - `✅mock` = **仅 mock 跑通**，且前端类型/入出参与**真契约 DTO 对齐**（仓库 `mock/` + smoke/前端联调可通；**不是**真后端验收）。**DTO 未齐或契约已删 → 禁止打勾**，一律 `❓`  
+> - `✅mock` = **曾仅本地 mock 验证**，且前端类型/入出参与**真契约 DTO 对齐**。**⚠️ 本地 mock 后端（仓库 `mock/`）已于 2026-08-25 删除**，所有标记 `✅mock` 的接口均**尚未在真实后端回归**，上线前须逐条重跑。**不是**真后端验收。**DTO 未齐或契约已删 → 禁止打勾**，一律 `❓`  
 > - `❓` = 已有请求/调用点，但仍有问题（含：mock 请求能通但 **DTO 未对齐**、path 已从契约删除、枚举对照错误等；原因写在同行）  
 > - 无标记 / `—` = 未接 / 本轮不做 / 产品排除（**不是遗漏**；见下「产品排除」与 BE-UNUSED）  
 > DEV-010 / **FIELD-GAP-015 已关闭（✅mock + 前端 DTO）：**`coupons/usable` 选券 + `CreateOrderReq` 传 `customer_coupon_id` + `client_token`；展示价前端本地试算；无 `checkout/preview` / 无 `client_payable_amount`。FIELD-GAP-007 枚举 **已对齐**（读侧 1–5；写路径 UI 自取→堂食 1，见 DEV-010）。DEV-013 选店页 **已闭环**。FE-NEED-004/005 已改为本地试算。  
 > **产品排除（2026-08-15 确认，C 端本期不做 UI / 不封装）：** 整段售后退款（`…/refund`*、`GET /refunds`*）；确认收货；礼品物流；退货（`/returns*`）；商城加购/下单/支付/履约；卡券 DELETE 作废；`wx-precheck`（勿为接它加预检步骤）。堂食主路径与选物**仅浏览**不受影响。  
-> **Base URL 切换：** 只改 `.env.development` 的 `VITE_API_BASE_URL` 后重启 dev；mock=`http://127.0.0.1:3780`（H5 可用 `/api`+代理），真后端=`http://192.168.10.49:8000`。`VITE_ENABLE_MOCK` 不参与路由（DEV-008）。
+> **Base URL 切换（2026-08-25 更新，本地 mock 已删除）：** 只改 `.env.development` 的 `VITE_API_BASE_URL` 后重启 dev；真后端=`http://192.168.10.49:8000`；H5 开发保留 `/api` 由 Vite 代理到 `vite.config.ts` 的 `server.proxy['/api'].target`。**`VITE_ENABLE_MOCK` 环境变量已随 mock 一并移除**，所有请求一律直连真后端（开发态模拟支付由真后端 `mock-paid` 接口提供）。
 
 
 
@@ -30,7 +30,7 @@
 | 文档自述    | **已实现接口已从后端 FastAPI 同步，摘要带【已实现】；未标注路径为历史规划，不要按规划字段对接已实现接口。** 管理后台 `/api/admin/`*；小程序* `/api/mp/`（顾客/店员按角色）；HTTP 恒 200；业务成败看 `code`/`is_success`；P0=堂食闭环，P1=商城/卡券，P2=外卖预留。状态枚举见文档站 `/plans/enums`。 |
 
 
-**不是契约：** `docs/API.md`、现有 `src/common/apis/`* 旧路径、`src/common/mock/`*、仓库 `mock/`、已删除的调试 path（见下「相对上一版」）。
+**不是契约：** `docs/API.md`、现有 `src/common/apis/`* 旧路径、`src/common/mock/`*（静态文案映射，非服务）、已删除的本地 mock 服务（原仓库 `mock/`，2026-08-25 移除）、已删除的调试 path（见下「相对上一版」）。
 
 ### 两套信封（接入时只改 `types/api.ts` + `interceptors.ts`）
 
@@ -151,7 +151,7 @@
 | `/api/mp/orders/{order_id}/refund`             | POST   | 是           | —     | 入：`reason`                                                                                                     | **产品排除（整段售后退款不做）。** BE-UNUSED-013；前端不封装、不调                                                                                                                  |
 | `/api/mp/orders/{order_id}/refund/cancel`      | POST   | 是           | —     | —                                                                                                              | **产品排除。** BE-UNUSED-013                                                                                                                                     |
 | `/api/mp/customer/payments/prepay`             | POST   | 是           | ✅mock | 入：`order_id*`                                                                                                  | **mock 跑通。** 现行 `POST /api/mp/customer/payments/prepay`；确认单提交支付 → `paymentApi.prepay`；返回带 `mock: true`                                                      |
-| `/api/mp/customer/payments/mock-paid`          | POST   | 是           | ✅mock | 仅 mock                                                                                                         | **mock 跑通（本 path 即模拟支付）。** 现行 `POST /api/mp/customer/payments/mock-paid`；H5/devtools / mp mock 标记走 `settlePayment`                                          |
+| `/api/mp/customer/payments/mock-paid`          | POST   | 是           | ✅mock | 仅开发态模拟支付                                                                                                         | **曾 mock 跑通；真后端已实现本接口（2026-08-25 确认）。** 现行 `POST /api/mp/customer/payments/mock-paid`；H5/devtools / mp mock 标记走 `settlePayment`                                          |
 | `/api/system/payments/wechat/notify`           | POST   | 是           | —     | 微信服务器                                                                                                          | 非顾客端调用；现行 `POST /api/system/payments/wechat/notify`                                                                                                           |
 | `/api/system/payments/wechat/refund-notify`    | POST   | 是           | —     | 微信服务器                                                                                                          | 非顾客端调用；现行 `POST /api/system/payments/wechat/refund-notify`                                                                                                    |
 | `/api/mp/refunds`                              | GET    | 是           | —     | RefundRes[]；Query `order_id?`                                                                                  | **产品排除。** BE-UNUSED-013                                                                                                                                     |
@@ -332,12 +332,13 @@
 
 
 
-## 编码进度（2026-08-18 按离线契约 + 当前 `src/` · mock 打勾）
+## 编码进度（2026-08-18 按离线契约 + 当前 `src/` · mock 打勾；⚠️ 2026-08-25 mock 已删，下列均待真后端回归）
 
-依据：仓库 `mock/server.mjs` + `mock/smoke-test.mjs` 及前端调用点；**产品排除**见页头（2026-08-15）。  
-**打勾前提：** mock 可通 **且** 前端入出参与真契约 DTO 对齐。契约已删 / DTO 未齐 → 只记 `❓`，即使 mock 请求 200。
+依据：原仓库 `mock/server.mjs` + `mock/smoke-test.mjs`（已于 2026-08-25 删除）及前端调用点；**产品排除**见页头（2026-08-15）。  
+**打勾前提：** mock 可通 **且** 前端入出参与真契约 DTO 对齐。契约已删 / DTO 未齐 → 只记 `❓`，即使 mock 请求 200。  
+**⚠️ 回归提醒：** 以下 `✅mock` 条目均**仅在已删除的本地 mock 上验证过**，切换到真后端后须逐条重跑验收，重点见文末「真后端回归清单」。
 
-### ✅mock 已对接（mock 跑通 + DTO 对齐）
+### ✅mock 已对接（曾 mock 跑通 + DTO 对齐，待真后端回归）
 
 1. 信封 `code === 0` + `http` PUT/DELETE（对 mock）
 2. `POST /api/mp/customer/auth/wx-login`（consent 四字段）、`GET /api/mp/customer/auth/me`（`need_reconsent`）、`POST /logout`；`PUT /profile`、`POST /bind-phone`、`POST /avatar`；`GET /api/mp/customer/legal/documents` 与 `GET .../documents/{doc_type}`（登录勾选 + 协议页；**不接** `wx-precheck`）
@@ -444,3 +445,39 @@
 
 
 未写入业务分支或注释。
+
+---
+
+
+
+## 真后端回归清单（2026-08-25 · 本地 mock 已删除后新增）
+
+本地假后端（仓库 `mock/`，默认 `http://127.0.0.1:3780`）已于 2026-08-25 删除，所有标记 `✅mock` 的接口均**只在已删除的 mock 上验证过**，切换真后端后须按下列优先级逐条回归，验收通过后方可把 `✅mock` 升格为真契约 `✅`。
+
+**⚠️ 高优先级（P0 主链路，阻断上线）：**
+
+| 流程 | 涉及接口 | 回归要点 |
+|---|---|---|
+| 登录鉴权 | `POST /auth/wx-login`、`GET /auth/me`、`PUT /profile`、`POST /bind-phone`、`POST /avatar`、`POST /auth/logout` | H5 开发码 `h5-dev-*` 真后端是否放行；`wxLogin` 的 `dev-wx-fallback-*` 回落 code 真后端**会拒绝**（仅联调排查用）；consent 四字段 |
+| 选店/菜单 | `GET /stores`、`GET /stores/{id}`、`GET /stores/{id}/menu` | `store_id` string 精度（FIELD-GAP-011）；菜单缺字段本地占位（FIELD-GAP-003/005/010） |
+| 扫码占桌 | `GET /tables/resolve`、`POST /tables/{id}/occupy`、`GET /stores/{id}/tables/available` | mock 曾允许对已占用桌重复入座，真后端占用态行为待确认 |
+| 购物袋 | `GET /cart`、`GET /cart/overview`、`POST /cart/items`、`PUT/DELETE /cart/items/{id}`、`POST /cart/clear` | `service_mode` 透传（FIELD-GAP-016） |
+| 下单/支付 | `POST /orders`、`GET /orders`、`GET /orders/{id}`、`POST /orders/{id}/cancel`、`POST /payments/prepay`、`POST /payments/mock-paid` | `client_token` 幂等；`customer_coupon_id` 下单自动核销；`mock-paid` **真后端已实现**（DEV-011）；真商户支付仍未接 |
+| 外卖配送 | `GET /delivery/channels`、`POST /delivery/quote`、`GET /delivery/orders/{order_id}` | **配送通道已从 mock 切到 `wechat`**（`ACTIVE_DELIVERY_PROVIDER`），需确认真后端 wechat 通道 enabled+ready |
+
+**中优先级（次要页面）：**
+
+| 流程 | 涉及接口 |
+|---|---|
+| 优惠券 | `GET /coupons/mine`、`GET /coupons/usable`、`GET /coupons/available`、`POST /coupons/claim`、`GET /coupons/mine/{id}` |
+| 会员/月卡 | `GET /member/summary`、`GET /member/levels`、`GET /member/benefits`、`POST /member/subscribe`、`GET /member/subscriptions` |
+| 积分 | `GET /points/account`、`GET /points/ledger` |
+| 地址簿 | `GET/POST /addresses`、`GET/PUT/DELETE /addresses/{id}` |
+| 法律条款 | `GET /legal/documents`、`GET /legal/documents/{doc_type}` |
+| 选物浏览（仅读） | `GET /mall`、`GET /mall/products/{id}` |
+
+**环境注意事项：**
+- `VITE_ENABLE_MOCK` 环境变量已移除，前端不再有任何 mock 开关。
+- H5 开发由 Vite 代理 `/api` 到 `vite.config.ts` 的 `server.proxy['/api'].target`（默认 `http://127.0.0.1:8000`）。
+- 小程序联调改 `.env.development` 的 `VITE_API_BASE_URL` 为真后端完整地址，勿带 `/api` 后缀。
+- `src/common/mock/catalog.ts` 仍保留，仅作菜单缺字段的静态文案/分类映射，非接口 mock。

@@ -1,15 +1,17 @@
 <script setup lang="ts">
-withDefaults(
+const props = withDefaults(
   defineProps<{
     variant?: 'primary' | 'secondary' | 'ghost'
     block?: boolean
+    disabled?: boolean
   }>(),
-  { variant: 'primary', block: false },
+  { variant: 'primary', block: false, disabled: false },
 )
 
 const emit = defineEmits<{ click: []; tap: [] }>()
 
 function onTap() {
+  if (props.disabled) return
   emit('click')
   emit('tap')
 }
@@ -18,8 +20,8 @@ function onTap() {
 <template>
   <view
     class="mp-btn"
-    :class="[`mp-btn--${variant}`, { 'mp-btn--block': block }]"
-    hover-class="mp-btn--active"
+    :class="[`mp-btn--${variant}`, { 'mp-btn--block': block, 'is-disabled': disabled }]"
+    :hover-class="disabled ? '' : 'mp-btn--active'"
     @tap="onTap"
   >
     <slot />
@@ -61,6 +63,10 @@ function onTap() {
   padding: 0;
   color: $mp-brass;
   letter-spacing: 0.1em;
+}
+
+.mp-btn.is-disabled {
+  opacity: 0.45;
 }
 
 .mp-btn--active {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { storeIsOpenNow, storeStatusLabel } from '@/common/apis/storeApi'
+import { storeCanAcceptOrders, storeStatusLabel } from '@/common/apis/storeApi'
 import type { StoreRes } from '@/common/types/store'
 
 const props = withDefaults(
@@ -27,8 +27,11 @@ const hours = computed(() => props.info.business_hours || '营业时间待定')
 const openLabel = computed(() => storeStatusLabel(props.info))
 
 const openTone = computed(() =>
-  storeIsOpenNow(props.info) ? 'store-card__status--on' : 'store-card__status--off',
+  storeCanAcceptOrders(props.info) ? 'store-card__status--on' : 'store-card__status--off',
 )
+
+/** 是否可下单：休息/暂停接单时 CTA 置灰（卡片仍可点击切换门店） */
+const canOrder = computed(() => storeCanAcceptOrders(props.info))
 </script>
 
 <template>
@@ -49,7 +52,7 @@ const openTone = computed(() =>
     </view>
 
     <view class="store-card__side">
-      <text class="store-card__cta">去点单</text>
+      <text class="store-card__cta" :class="{ 'store-card__cta--off': !canOrder }">去点单</text>
       <text class="store-card__distance">距您{{ distance }}</text>
     </view>
 
@@ -168,6 +171,10 @@ const openTone = computed(() =>
   font-weight: 500;
   letter-spacing: 0.06em;
   color: $mp-moss;
+}
+
+.store-card__cta--off {
+  color: $mp-text-3;
 }
 
 .store-card__distance {

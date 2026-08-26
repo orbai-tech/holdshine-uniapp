@@ -10,6 +10,7 @@ import {
   listStoresByAddress,
   storeDistanceLabel,
   storeIdOf,
+  storeIsVisible,
 } from '@/common/apis/storeApi'
 import type { FulfillmentMode } from '@/common/types/fulfillment'
 import type { StoreRes } from '@/common/types/store'
@@ -138,7 +139,7 @@ async function loadStores() {
           stores.value = await listStoresByAddress(here.value)
         } else {
           const page = await listMpStores({ page: 1, page_size: 100 })
-          stores.value = (page.list ?? []).filter((item) => item.status === 1)
+          stores.value = (page.list ?? []).filter((item) => storeIsVisible(item))
         }
       }
     } else {
@@ -152,10 +153,10 @@ async function loadStores() {
         latitude: here.value?.latitude,
         longitude: here.value?.longitude,
       })
-      stores.value = (page.list ?? []).filter((item) => item.status === 1)
+      stores.value = (page.list ?? []).filter((item) => storeIsVisible(item))
     }
     if (!stores.value.length && !errorText.value) {
-      errorText.value = '暂无营业门店'
+      errorText.value = '暂无门店'
     }
   } catch (error) {
     errorText.value = toErrorMessage(error, '门店列表加载失败')

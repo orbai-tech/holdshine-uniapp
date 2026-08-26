@@ -40,7 +40,7 @@ export async function listStoresByAddress(point: GeoPoint): Promise<StoreRes[]> 
     latitude: point.latitude,
     longitude: point.longitude,
   })
-  const list = (page.list ?? []).filter((item) => item.status === 1)
+  const list = (page.list ?? []).filter((item) => storeIsVisible(item))
   return [...list].sort((a, b) => storeDistanceKm(a, point) - storeDistanceKm(b, point))
 }
 
@@ -108,4 +108,24 @@ export function storeStatusLabel(store: StoreOpenFields | null | undefined): str
   const label = store.status_label?.trim()
   if (label) return label
   return storeIsOpenNow(store) ? '营业中' : '休息中'
+}
+
+/** 后端门店状态枚举：0=已停用 1=营业中 2=休息 3=暂停接单 */
+export const STORE_STATUS = {
+  DISABLED: 0,
+  OPEN: 1,
+  RESTING: 2,
+  PAUSED: 3,
+} as const
+
+/** 门店是否可在顾客端列表中展示（仅「已停用」隐藏；营业/休息/暂停接单均可见、可切换） */
+export function storeIsVisible(store: { status?: number } | null | undefined): boolean {
+  if (!store) return false
+  return store.status !== STORE_STATUS.DISABLED
+}
+
+/** 门店当前是否可下单：仅「营业中」可下单；休息/暂停接单不可下单 */
+export function storeCanAcceptOrders(store: { status?: number } | null | undefined): boolean {
+  if (!store) return false
+  return store.status === STORE_STATUS.OPEN
 }

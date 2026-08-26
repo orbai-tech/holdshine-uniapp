@@ -11,7 +11,7 @@
 - **会员**：成长值进度条、三档权益文案、会员价去点单
 - **我的**：登录态展示、演示登录/退出、优惠券/积分/门店/地址等入口
 - **其他**：优惠券、积分、门店列表、地址管理、结算、法律条款（服务协议/隐私政策）
-- **鉴权链路**：微信 `uni.login` 拿 code → 后端换 token → 请求自动带 Bearer；H5 走 mock 演示会话
+- **鉴权链路**：微信 `uni.login` 拿 code → 后端换 token → 请求自动带 Bearer；H5 走开发会话
 
 ## 技术栈
 
@@ -48,23 +48,6 @@ npm run dev:mp-weixin
 
 > 后端地址变更时如何调整，见下方「切换后端地址」一节。
 
-### 本地 Mock（可选）
-
-如果后端未启动，可退回本地假后端：
-
-```bash
-npm run mock          # 启动假后端，默认 http://127.0.0.1:3780
-npm run mock:test     # 烟雾测试登录 / 资料 / 退出
-```
-
-Mock 首次使用需复制环境文件：
-
-```bash
-cp mock/.env.example mock/.env
-```
-
-使用 Mock 时，把 `vite.config.ts` 的代理 `target` 指回 `http://127.0.0.1:3780`，小程序端把 `VITE_API_BASE_URL` 改为 `http://127.0.0.1:3780`。
-
 ## 常用脚本
 
 | 命令 | 说明 |
@@ -75,20 +58,17 @@ cp mock/.env.example mock/.env
 | `npm run preview:h5` | 本地预览 H5 生产产物 |
 | `npm run build:mp-weixin` | 生产构建微信小程序（产物在 `dist/build/mp-weixin`） |
 | `npm run type-check` | 类型检查（vue-tsc） |
-| `npm run mock` | 启动本地假后端 |
-| `npm run mock:test` | 跑 Mock 烟雾测试 |
 
 ## 项目结构
 
 ```text
 ├── docs/                     # 中文开发文档
-├── mock/                     # Node 假后端（登录/各领域接口 + 烟雾测试）
 ├── scripts/                  # 辅助脚本
 └── src/
     ├── common/
     │   ├── apis/             # 按领域拆分接口（auth/catalog/cart/order/...）
     │   ├── types/            # 跨模块类型定义
-    │   ├── mock/             # 前端内置 Mock 数据（受 VITE_ENABLE_MOCK 控制）
+    │   ├── mock/             # 前端内置静态文案/占位数据（catalog 内容映射等）
     │   └── legal/            # 法律条款数据
     ├── components/           # 跨页面通用组件（soorak-*）
     ├── pages/                # 页面包（home/menu/orders/mine/coupons/...）
@@ -114,9 +94,6 @@ cp mock/.env.example mock/.env
 | `VITE_APP_TITLE` | 应用展示名称 | `元气善筑` |
 | `VITE_API_BASE_URL` | 后端接口基础地址。接口路径本身已带 `/api` 前缀，这里不要再拼 `/api`（H5 开发可走 `/api` 代理） | `/api` |
 | `VITE_API_TIMEOUT` | 请求超时（毫秒） | `10000` |
-| `VITE_ENABLE_MOCK` | 历史开关，前端已不再读取，保留仅作语义说明 | `false` |
-
-Mock 服务的 `WX_APPID` / `WX_SECRET` 等配置在 `mock/.env`，只被 Node 服务读取，不会进入产物。
 
 ### 切换后端地址
 
@@ -132,10 +109,9 @@ Mock 服务的 `WX_APPID` / `WX_SECRET` 等配置在 `mock/.env`，只被 Node �
 - [开发指南](docs/DEVELOPMENT.md)
 - [目录与架构](docs/ARCHITECTURE.md)
 - [组件](docs/COMPONENTS.md)
-- [接口与 Mock](docs/API.md)
+- [接口](docs/API.md)
 - [跨端构建](docs/PLATFORM_BUILD.md)
 - [迁移范围](docs/MIGRATION_SCOPE.md)
 - [映射表](docs/MIGRATION_MAP.md)
 - [偏差](docs/DEVIATION_LOG.md)
 - [进度](docs/MIGRATION_PROGRESS.md)
-- [Mock 后端](mock/README.md)

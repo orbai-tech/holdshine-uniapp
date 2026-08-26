@@ -11,6 +11,9 @@ import type { FulfillmentMode } from '@/common/types/fulfillment'
 const catalog = useCatalogStore()
 const session = useSessionStore()
 
+/** 当前门店是否可下单；休息/暂停接单时菜单展示休息提示 */
+const canOrder = computed(() => catalog.canOrder)
+
 const drinkCategories = computed(() =>
   catalog.categories.filter((category) => !category.name.includes('零售')),
 )
@@ -135,6 +138,10 @@ function onContextTap() {
         <text class="menu-store__eta">{{ etaText }}</text>
       </view>
 
+      <view v-if="!canOrder" class="menu-resting">
+        <text class="menu-resting__text">门店休息中，暂不可点单</text>
+      </view>
+
       <scroll-view scroll-x class="menu-chips" :show-scrollbar="false">
         <view class="menu-chip" :class="{ 'is-on': session.categoryId == null }" @click="setFilter(null)">全部</view>
         <view
@@ -225,6 +232,19 @@ function onContextTap() {
   color: $mp-text-2;
   flex-shrink: 0;
   margin-left: 16rpx;
+}
+
+.menu-resting {
+  margin: 4rpx 0 12rpx;
+  padding: 16rpx 24rpx;
+  border-radius: 12rpx;
+  background: $mp-cloud;
+  box-shadow: inset 0 0 0 1rpx $mp-border;
+}
+
+.menu-resting__text {
+  font-size: 24rpx;
+  color: $mp-text-2;
 }
 
 .menu-chips {

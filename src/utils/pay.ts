@@ -24,7 +24,7 @@ function requestWxPayment(prepay: PrepayRes): Promise<void> {
   })
 }
 
-/** mock / 开发态：可「暂不支付」留下待支付单，便于取消验收 */
+/** 开发态模拟支付（由真实后端 mock-paid 接口提供）：可「暂不支付」留下待支付单，便于取消验收 */
 function confirmMockPay(): Promise<boolean> {
   return new Promise((resolve) => {
     uni.showModal({
@@ -45,7 +45,7 @@ export class PayCancelledError extends Error {
   }
 }
 
-/** H5/devtools：mock-paid；mp-weixin：真参走 requestPayment，缺参或 mock 标记走 mock-paid。 */
+/** H5/devtools：走真实后端 mock-paid；mp-weixin：真参走 requestPayment，缺参或 mock 标记走 mock-paid。 */
 export async function settlePayment(
   orderId: number | string,
   prepay: PrepayRes,

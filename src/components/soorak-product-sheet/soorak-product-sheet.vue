@@ -10,7 +10,7 @@ export default {
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import SoorakSheet from '@/components/soorak-sheet/soorak-sheet.vue'
-import { storeIsOpenNow } from '@/common/apis/storeApi'
+import { storeCanAcceptOrders } from '@/common/apis/storeApi'
 import { useCartStore } from '@/stores/cart'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSessionStore } from '@/stores/session'
@@ -115,7 +115,8 @@ const displayLineText = computed(() => {
 
 const sheetOpen = computed(() => product.value != null)
 const sheetTitle = computed(() => (isRetail.value ? '商品详情' : '选规格'))
-const canAddToBag = computed(() => storeIsOpenNow(catalog.currentStore))
+/** 是否可加购：休息/暂停接单（status!=1）时禁用，避免绕过入口直接加购 */
+const canAddToBag = computed(() => storeCanAcceptOrders(catalog.currentStore))
 
 const showRitual = computed(() => Boolean(product.value?.desc || product.value?.tag))
 
