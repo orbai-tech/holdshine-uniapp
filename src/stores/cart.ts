@@ -213,16 +213,24 @@ export const useCartStore = defineStore('cart', () => {
     }
   }
 
-  /** createOrder → prepay → settlePayment；支付取消则保留待支付单并进订单 Tab */
+  /**
+   * createOrder →（可选）prepay → settlePayment；
+   * mode='hold' 只创建待支付单（倒计时由订单列表展示），mode='pay' 下单后立即支付。
+   */
   async function submitCheckout(
     opts: {
       remark?: string
       customer_coupon_id?: string | null
       /** 前端展示应付，仅用于与响应 payable_amount 比对 toast */
       expected_payable?: number | null
+      /** 'pay' 下单后立即支付；'hold' 只创建订单（待支付），稍后到订单列表续付 */
+      mode?: 'pay' | 'hold'
     } = {},
   ) {
-    if (writeBusy.value) return
+    if (writeBusy.value) {
+      uni.showToast({ title: '操作太频繁，请稍候再试', icon: 'none' })
+      return
+    }
     const session = useSessionStore()
     if (!(await session.ensureLogin())) throw new Error('请先登录')
     const catalog = useCatalogStore()
@@ -273,6 +281,8 @@ export const useCartStore = defineStore('cart', () => {
           customer_coupon_id: couponId,
         })
       } catch (error) {
+        // 打印真实错误，避免 toast 被 loading 顶掉后无从排查
+        console.error('[submitCheckout] 创建订单失败:', error)
         if (!isRetriableNetworkError(error)) {
           orderCheckoutIntent.clear()
         }
@@ -291,6 +301,13 @@ export const useCartStore = defineStore('cart', () => {
       await refreshCart()
       session.setCartOpen(false)
 
+      // 用户选择「暂缓」：只创建订单，进订单列表展示倒计时，稍后续付
+      if (opts.mode === 'hold') {
+        session.goTab('/pages/orders/index')
+        uni.showToast({ title: '订单已创建，请在倒计时内支付', icon: 'none' })
+        return
+      }
+
       let paid = false
       try {
         const payParams = await prepay(order.order_id, clientToken)
@@ -304,7 +321,9 @@ export const useCartStore = defineStore('cart', () => {
       }
 
       session.goTab('/pages/orders/index')
-      if (!paid) {
+      if (paid) {
+        uni.showToast({ title: '支付成功', icon: 'none' })
+      } else {
         uni.showToast({ title: '订单待支付', icon: 'none' })
       }
     } finally {

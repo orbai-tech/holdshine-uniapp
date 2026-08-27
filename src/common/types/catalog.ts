@@ -18,14 +18,18 @@ export interface Product {
   desc: string
   story: string
   price: number
+  /** 商品基础价格（后台 base_price），用于计算杯型等规格的加价展示 */
+  basePrice: number
   img: string
   cat: ProductCategory
   ritual: RitualId
   tag?: string
   scene: string
   recommended?: boolean
-  /** 真契约 string；18 位雪花大整数 */
+  /** 真契约 string；18 位雪花大整数。商品所属的"主"分类（首次关联），兼容旧调用。 */
   categoryId?: string
+  /** 真契约 string[]；商品绑定的全部分类 id。一个商品被绑定到多个分类时聚合，避免"全部"下重复卡片。 */
+  categoryIds?: string[]
   skus?: MpMenuSkuRes[]
   optionGroups?: MpMenuOptionGroupRes[]
 }

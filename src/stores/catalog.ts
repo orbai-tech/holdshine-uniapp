@@ -23,6 +23,10 @@ export const useCatalogStore = defineStore('catalog', () => {
   const loading = ref(false)
   const errorText = ref('')
   let loadedStoreId: string | null = null
+  let loadedAt = 0
+
+  /** 菜单缓存有效期（毫秒）：窗口内回到菜单页直接复用，避免每次 onShow 都请求。 */
+  const CACHE_TTL_MS = 5 * 60 * 1000
 
   function applyBrandStore(store: StoreRes, distance: string) {
     if (!brand.value) return
@@ -64,8 +68,11 @@ export const useCatalogStore = defineStore('catalog', () => {
     applyBrandStore(picked, storeDistanceLabel(picked, here))
   }
 
-  async function ensureLoaded() {
-    if (loadedStoreId && loadedStoreId === currentStoreId.value && products.value.length) return
+  async function ensureLoaded(force = false) {
+    const stale = Date.now() - loadedAt > CACHE_TTL_MS
+    if (!force && !stale && loadedStoreId && loadedStoreId === currentStoreId.value && products.value.length) {
+      return
+    }
     loading.value = true
     errorText.value = ''
     try {
@@ -91,6 +98,7 @@ export const useCatalogStore = defineStore('catalog', () => {
         name: item.category_name,
       }))
       loadedStoreId = storeId
+      loadedAt = Date.now()
     } catch (error) {
       errorText.value = error instanceof Error ? error.message : '加载失败'
     } finally {

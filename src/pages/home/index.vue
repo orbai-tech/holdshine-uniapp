@@ -146,7 +146,7 @@ function onScanDraftInput(event: { detail?: { value?: string } }) {
     </view>
     <view v-else-if="catalog.errorText" class="mp-empty">
       <text class="t-caption">{{ catalog.errorText }}</text>
-      <SoorakButton @click="catalog.ensureLoaded()">重试</SoorakButton>
+      <SoorakButton @click="catalog.ensureLoaded(true)">重试</SoorakButton>
     </view>
     <view v-else-if="catalog.brand" class="page-home">
       <view class="home-hero">

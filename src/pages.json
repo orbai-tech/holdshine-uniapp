@@ -6,7 +6,11 @@
     },
     {
       "path": "pages/menu/index",
-      "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
+      "style": {
+        "navigationStyle": "custom",
+        "backgroundColor": "#f7f4ee",
+        "enablePullDownRefresh": true
+      }
     },
     {
       "path": "pages/orders/index",

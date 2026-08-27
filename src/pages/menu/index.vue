@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onPullDownRefresh, onShow } from '@dcloudio/uni-app'
 import SoorakChrome from '@/components/soorak-chrome/soorak-chrome.vue'
 import SoorakButton from '@/components/soorak-button/soorak-button.vue'
 import ProductCard from './components/product-card.vue'
@@ -27,7 +27,10 @@ const list = computed(() => {
     (category) => category.id === active && category.name.includes('零售'),
   )
   if (retailCategory) return drinkProducts.value
-  return drinkProducts.value.filter((item) => item.categoryId === active)
+  return drinkProducts.value.filter((item) => {
+    const ids = item.categoryIds ?? (item.categoryId ? [item.categoryId] : [])
+    return ids.includes(active)
+  })
 })
 
 const etaText = computed(() => {
@@ -68,6 +71,14 @@ onShow(() => {
   })
 })
 
+onPullDownRefresh(async () => {
+  try {
+    await catalog.ensureLoaded(true)
+  } finally {
+    uni.stopPullDownRefresh()
+  }
+})
+
 /** 分类 id 是 18 位雪花大整数（string），直接透传 */
 function setFilter(id: string | null) {
   session.setCategoryId(id)
@@ -105,7 +116,7 @@ function onContextTap() {
     </view>
     <view v-else-if="catalog.errorText" class="mp-empty">
       <text class="t-caption">{{ catalog.errorText }}</text>
-      <SoorakButton @click="catalog.ensureLoaded()">重试</SoorakButton>
+      <SoorakButton @click="catalog.ensureLoaded(true)">重试</SoorakButton>
     </view>
     <view v-else-if="!list.length" class="mp-empty">
       <text class="t-caption">暂无商品</text>

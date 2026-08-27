@@ -10,6 +10,7 @@ import { listAvailableTables } from '@/common/apis/tableApi'
 import type { DeliveryQuoteRes } from '@/common/types/delivery'
 import type { MyCouponRes } from '@/common/types/coupon'
 import type { MpAvailableTableRes } from '@/common/types/table'
+import { TABLE_STATUS } from '@/common/types/table'
 import { lineAmount, useCartStore } from '@/stores/cart'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSessionStore } from '@/stores/session'
@@ -75,7 +76,7 @@ const tableLabel = computed(() => {
   if (session.pickupSubMode !== 'dine_in') return ''
   if (session.tableName) return session.tableName
   if (session.tableCode) return `桌码 ${session.tableCode}`
-  return '桌码 无'
+  return '请选择桌台'
 })
 
 const hasScannedTable = computed(() => session.tableFromScan && session.tableId != null)
@@ -350,8 +351,7 @@ function openAddress() {
 
 function onTapDineIn() {
   session.setPickupSubMode('dine_in')
-  // 扫码入座或刚从打包恢复的桌台：不再弹选桌，避免 mock 占用态把原桌打成「不可选」
-  if (hasScannedTable.value || session.tableId != null) return
+  // 允许用户随时重新选桌（包括已选桌但未下单、扫码入座等情况）
   void openTableSheet()
 }
 
@@ -359,13 +359,12 @@ function onTapPack() {
   session.setPickupSubMode('pack')
 }
 
-async function openTableSheet() {
-  tableSheetOpen.value = true
+async function loadAvailableTablesData() {
   const storeId = catalog.currentStoreId
   if (storeId == null) {
     availableTables.value = []
     tablesHint.value = '请先选择门店'
-    return
+    return availableTables.value
   }
   tablesBusy.value = true
   tablesHint.value = ''
@@ -375,13 +374,20 @@ async function openTableSheet() {
     if (!availableTables.value.length) {
       tablesHint.value = '暂无可选桌台'
     }
+    return availableTables.value
   } catch (error) {
     availableTables.value = []
     tablesHint.value = toErrorMessage(error, '桌台加载失败')
     uni.showToast({ title: tablesHint.value.slice(0, 40), icon: 'none' })
+    return availableTables.value
   } finally {
     tablesBusy.value = false
   }
+}
+
+async function openTableSheet() {
+  tableSheetOpen.value = true
+  await loadAvailableTablesData()
 }
 
 function pickTable(table: MpAvailableTableRes | null) {
@@ -467,18 +473,68 @@ async function submitPay() {
     })
     return
   }
+  // 堂食必须选桌
+  if (session.pickupSubMode === 'dine_in' && session.tableId == null) {
+    uni.showToast({ title: '请选择店内就餐桌台', icon: 'none' })
+    void openTableSheet()
+    return
+  }
+  // 堂食模式下，若当前桌台已被占用，后端会走「同桌加餐」而非创建新订单，导致无法支付或看不到新订单
+  if (session.pickupSubMode === 'dine_in' && session.tableId != null) {
+    if (!availableTables.value.length) {
+      await loadAvailableTablesData()
+    }
+    const selectedTable = availableTables.value.find(
+      (t) => String(t.table_id) === String(session.tableId),
+    )
+    if (
+      selectedTable &&
+      (!selectedTable.selectable || selectedTable.table_status === TABLE_STATUS.DINING)
+    ) {
+      uni.showModal({
+        title: '当前桌台正在用餐',
+        content: `桌台 ${selectedTable.table_name || selectedTable.table_code} 已被占用，无法创建新订单。请更换空闲桌台后再下单。`,
+        showCancel: true,
+        cancelText: '取消',
+        confirmText: '更换桌台',
+        success: (res) => {
+          if (res.confirm) openTableSheet()
+        },
+      })
+      return
+    }
+  }
+  // 下单前让用户选择：立即支付 / 暂缓（先创建未支付订单，倒计时内到订单列表续付）
+  const choice = await new Promise<'pay' | 'hold' | 'dismiss'>((resolve) => {
+    uni.showModal({
+      title: '确认下单',
+      content: '选择「立即支付」将马上完成付款；选择「暂缓支付」将先创建订单，可在倒计时内到订单列表继续支付。',
+      confirmText: '立即支付',
+      cancelText: '暂缓支付',
+      success: (res) => resolve(res.confirm ? 'pay' : 'hold'),
+      fail: () => resolve('dismiss'),
+    })
+  })
+  if (choice === 'dismiss') return
+
   uni.showLoading({ title: '提交中', mask: true })
   try {
     await cart.submitCheckout({
       remark: remark.value,
       customer_coupon_id: selectedCouponId.value,
       expected_payable: displayTotal.value,
+      mode: choice,
     })
   } catch (error) {
-    uni.showToast({ title: toErrorMessage(error, '提交失败').slice(0, 40), icon: 'none' })
-  } finally {
+    // 注意：必须先把 loading 关掉再 toast，否则 hideLoading 会把 toast 一起顶掉
     uni.hideLoading()
+    const message = toErrorMessage(error, '提交失败')
+    if (message !== 'UNAUTHORIZED') {
+      uni.showToast({ title: message.slice(0, 40), icon: 'none' })
+    }
+    return
   }
+  uni.hideLoading()
 }
 </script>
 
@@ -666,15 +722,6 @@ async function submitPay() {
         </view>
         <view v-else-if="tablesHint" class="table-hint">
           <text class="t-caption">{{ tablesHint }}</text>
-        </view>
-        <view
-          class="table-option"
-          :class="{
-            'is-on': session.pickupSubMode === 'dine_in' && session.tableId == null,
-          }"
-          @click="pickTable(null)"
-        >
-          <text>无桌码</text>
         </view>
         <view
           v-for="table in availableTables"

@@ -15,8 +15,18 @@ import { useCartStore } from '@/stores/cart'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSessionStore } from '@/stores/session'
 import type { CupSize, DrinkTemp } from '@/common/types/commerce'
+import type { MpMenuOptionRes, MpMenuSkuRes } from '@/common/types/menu'
 import { SERVICE_MODE, toServiceMode, toTableId } from '@/common/types/orderEnums'
-import { calcLineUnit, calcLocalFallbackUnit, applyMemberDiscount, formatMemberGoodsMoney } from '@/utils/pricing'
+import { parseAmount } from '@/utils/money'
+import {
+  calcLineUnit,
+  calcLocalFallbackUnit,
+  applyMemberDiscount,
+  formatMemberGoodsMoney,
+  formatDelta,
+  FALLBACK_SIZE_UP,
+  FALLBACK_EXTRA_EACH,
+} from '@/utils/pricing'
 
 const SIZES: CupSize[] = ['中杯', '大杯']
 const TEMPS: DrinkTemp[] = ['热', '正常冰', '少冰']
@@ -63,6 +73,22 @@ watch(
     extras.value = []
     qty.value = 1
     storyOpen.value = false
+  },
+)
+
+/**
+ * FIELD-GAP-006：菜单刷新后同商品的 skus 可能变化（旧 sku 被停用/删除），
+ * 此时 product.id 不变，上面的 watch 不会触发，skuId 仍指向已失效的 sku_id，
+ * 加购会把无效 sku_id 传给后端导致「规格不存在」。
+ * 这里监听 sku 列表：当前选中的 sku 若已不在新列表，则自动重置为第一个有效 sku。
+ */
+watch(
+  () => (product.value?.skus ?? []).map((s) => s.sku_id).join(','),
+  () => {
+    const current = product.value
+    if (!current) return
+    if (skuId.value != null && current.skus?.some((s) => s.sku_id === skuId.value)) return
+    skuId.value = current.skus?.[0]?.sku_id ?? null
   },
 )
 
@@ -117,6 +143,16 @@ const sheetOpen = computed(() => product.value != null)
 const sheetTitle = computed(() => (isRetail.value ? '商品详情' : '选规格'))
 /** 是否可加购：休息/暂停接单（status!=1）时禁用，避免绕过入口直接加购 */
 const canAddToBag = computed(() => storeCanAcceptOrders(catalog.currentStore))
+/**
+ * 饮品必须依赖后端下发的 skus/option_groups 才能生成 sku_id/option_ids；
+ * 本地兜底选择的杯型/温度/加料无法透传给购物车，会导致订单详情丢失规格信息。
+ */
+const canAddDrink = computed(() => canAddToBag.value && (isRetail.value || hasApiOptions.value))
+const addDrinkDisabledReason = computed(() => {
+  if (!canAddToBag.value) return '门店休息中，暂无法加购'
+  if (!isRetail.value && !hasApiOptions.value) return '商品规格未配置，所选规格无法保存到订单'
+  return ''
+})
 
 const showRitual = computed(() => Boolean(product.value?.desc || product.value?.tag))
 
@@ -141,6 +177,17 @@ function toggleExtra(name: string) {
   extras.value = extras.value.includes(name)
     ? extras.value.filter((item) => item !== name)
     : [...extras.value, name]
+}
+
+/** 杯型 chip 文案：如「大杯 +3」；加价为 0 时不显示后缀 */
+function skuDeltaText(item: MpMenuSkuRes): string {
+  if (!product.value) return ''
+  return formatDelta(parseAmount(item.sale_price) - product.value.basePrice)
+}
+
+/** 选项 chip 文案：如「加椰果 +5」；price_delta 为 0 时不显示后缀 */
+function optionDeltaText(item: MpMenuOptionRes): string {
+  return formatDelta(parseAmount(item.price_delta))
 }
 
 async function add(openCart = true): Promise<boolean> {
@@ -228,6 +275,10 @@ async function buyNow() {
           {{ storyOpen ? '收起故事' : '展开产品故事' }}
         </view>
 
+        <view v-if="!hasApiOptions" class="ps__options-warning">
+          <text class="ps__options-warning-text">{{ addDrinkDisabledReason }}</text>
+        </view>
+
         <template v-if="hasApiOptions">
           <view v-if="product.skus?.length" class="ps__group">
             <text class="t-label">规格</text>
@@ -239,7 +290,7 @@ async function buyNow() {
                 :class="{ 'is-on': skuId === item.sku_id }"
                 @click="skuId = item.sku_id"
               >
-                {{ item.sku_name }}
+                {{ item.sku_name }}{{ skuDeltaText(item) }}
               </view>
             </view>
           </view>
@@ -253,7 +304,7 @@ async function buyNow() {
                 :class="{ 'is-on': optionIds.includes(item.option_id) }"
                 @click="toggleOption(group, item.option_id)"
               >
-                {{ item.option_name }}
+                {{ item.option_name }}{{ optionDeltaText(item) }}
               </view>
             </view>
           </view>
@@ -269,7 +320,7 @@ async function buyNow() {
                 :class="{ 'is-on': size === item }"
                 @click="size = item"
               >
-                {{ item }}{{ item === '大杯' ? ' +¥3' : '' }}
+                {{ item }}{{ formatDelta(item === '大杯' ? FALLBACK_SIZE_UP : 0) }}
               </view>
             </view>
           </view>
@@ -297,7 +348,7 @@ async function buyNow() {
                 :class="{ 'is-on': extras.includes(item) }"
                 @click="toggleExtra(item)"
               >
-                {{ item }} +¥3
+                {{ item }}{{ formatDelta(FALLBACK_EXTRA_EACH) }}
               </view>
             </view>
           </view>
@@ -352,8 +403,8 @@ async function buyNow() {
       <view v-else class="ps-cta ps-cta--drink" style="width:100%;">
         <view
           class="ps-cta__drink-btn"
-          :class="{ 'is-disabled': !canAddToBag }"
-          :hover-class="canAddToBag ? 'ps-cta__drink-btn--active' : 'none'"
+          :class="{ 'is-disabled': !canAddDrink }"
+          :hover-class="canAddDrink ? 'ps-cta__drink-btn--active' : 'none'"
           @click="add()"
         >
           <text class="ps-cta__drink-label">
@@ -479,6 +530,19 @@ async function buyNow() {
   font-size: 24rpx;
   letter-spacing: 0.08em;
   color: $mp-brass;
+}
+
+.ps__options-warning {
+  margin-bottom: 28rpx;
+  padding: 20rpx 24rpx;
+  background: #fff8e6;
+  border-radius: 8rpx;
+}
+
+.ps__options-warning-text {
+  font-size: 24rpx;
+  line-height: 1.5;
+  color: #b45a1a;
 }
 
 .ps__group {

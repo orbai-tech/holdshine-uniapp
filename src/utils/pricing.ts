@@ -15,6 +15,16 @@ export function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
+/**
+ * 规格加价文案：delta > 0 返回 `+3`，否则返回空串。
+ * 用于杯型（大杯 +3）与加料（加椰果 +5）的展示，保持前后端格式一致。
+ */
+export function formatDelta(delta: number): string {
+  const value = roundMoney(delta)
+  if (value <= 0) return ''
+  return `+${Number.isInteger(value) ? String(value) : value.toFixed(2)}`
+}
+
 /** 奶茶会员折后：四舍五入保留两位小数 */
 export function roundCoffeeMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100
