@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import type { Product } from '@/common/types/catalog'
 import { useCatalogStore } from '@/stores/catalog'
 import { useSessionStore } from '@/stores/session'
+import SoorakImage from '@/components/soorak-image/soorak-image.vue'
 
 const props = defineProps<{
   product: Product
@@ -19,14 +20,14 @@ function onTap() {
     uni.showToast({ title: '门店休息中，暂不可点单', icon: 'none' })
     return
   }
-  session.openProduct(props.product.id)
+  session.openProductPage(props.product.id)
 }
 </script>
 
 <template>
   <view class="mp-product-card" :class="{ 'mp-product-card--off': !canOrder }" @click="onTap">
     <view class="mp-product-card__media">
-      <image :src="product.img" mode="aspectFill" class="mp-product-card__img" />
+      <SoorakImage :src="product.img" mode="aspectFill" class="mp-product-card__img" />
       <text v-if="product.tag" class="mp-product-card__tag">{{ product.tag }}</text>
     </view>
     <view class="mp-product-card__body">

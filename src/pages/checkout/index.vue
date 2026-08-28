@@ -4,6 +4,7 @@ import { onHide, onShow, onUnload } from '@dcloudio/uni-app'
 import SoorakChrome from '@/components/soorak-chrome/soorak-chrome.vue'
 import SoorakButton from '@/components/soorak-button/soorak-button.vue'
 import SoorakSheet from '@/components/soorak-sheet/soorak-sheet.vue'
+import SoorakImage from '@/components/soorak-image/soorak-image.vue'
 import { quoteDelivery } from '@/common/apis/deliveryApi'
 import { listMyCoupons, listUsableCoupons } from '@/common/apis/couponApi'
 import { listAvailableTables } from '@/common/apis/tableApi'
@@ -76,7 +77,7 @@ const tableLabel = computed(() => {
   if (session.pickupSubMode !== 'dine_in') return ''
   if (session.tableName) return session.tableName
   if (session.tableCode) return `桌码 ${session.tableCode}`
-  return '请选择桌台'
+  return '桌码 无'
 })
 
 const hasScannedTable = computed(() => session.tableFromScan && session.tableId != null)
@@ -351,7 +352,8 @@ function openAddress() {
 
 function onTapDineIn() {
   session.setPickupSubMode('dine_in')
-  // 允许用户随时重新选桌（包括已选桌但未下单、扫码入座等情况）
+  // 扫码入座或刚从打包恢复的桌台：不再弹选桌，避免 mock 占用态把原桌打成「不可选」
+  if (hasScannedTable.value || session.tableId != null) return
   void openTableSheet()
 }
 
@@ -471,12 +473,6 @@ async function submitPay() {
       title: (deliveryQuote.value?.message || deliveryQuoteHint.value || '暂不可配送').slice(0, 40),
       icon: 'none',
     })
-    return
-  }
-  // 堂食必须选桌
-  if (session.pickupSubMode === 'dine_in' && session.tableId == null) {
-    uni.showToast({ title: '请选择店内就餐桌台', icon: 'none' })
-    void openTableSheet()
     return
   }
   // 堂食模式下，若当前桌台已被占用，后端会走「同桌加餐」而非创建新订单，导致无法支付或看不到新订单
@@ -629,7 +625,7 @@ async function submitPay() {
 
         <view v-if="usingRemote" class="ck-list">
           <view v-for="item in cart.remoteItems" :key="item.item_id" class="ck-item">
-            <image :src="itemImage(item.product_id)" mode="aspectFill" class="ck-item__img" />
+            <SoorakImage :src="itemImage(item.product_id)" mode="aspectFill" class="ck-item__img" />
             <view class="ck-item__body">
               <view class="ck-item__top">
                 <text class="ck-item__name">{{ item.product_name }}</text>
@@ -646,7 +642,7 @@ async function submitPay() {
             :key="`${item.product.id}-${idx}`"
             class="ck-item"
           >
-            <image :src="item.product.img" mode="aspectFill" class="ck-item__img" />
+            <SoorakImage :src="item.product.img" mode="aspectFill" class="ck-item__img" />
             <view class="ck-item__body">
               <view class="ck-item__top">
                 <text class="ck-item__name">{{ item.product.name }}</text>
@@ -722,6 +718,15 @@ async function submitPay() {
         </view>
         <view v-else-if="tablesHint" class="table-hint">
           <text class="t-caption">{{ tablesHint }}</text>
+        </view>
+        <view
+          class="table-option"
+          :class="{
+            'is-on': session.pickupSubMode === 'dine_in' && session.tableId == null,
+          }"
+          @click="pickTable(null)"
+        >
+          <text>无桌码</text>
         </view>
         <view
           v-for="table in availableTables"

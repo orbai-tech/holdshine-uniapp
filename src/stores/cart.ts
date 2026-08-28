@@ -109,8 +109,7 @@ export const useCartStore = defineStore('cart', () => {
       applyCart(await addCartItem(payload))
       items.value = [...items.value, item]
       void refreshOverview()
-      session.closeProduct()
-      // 加入购物袋不强制开袋，故 openCart=false 时跳过
+      // 商品详情已是独立页面：加入购物袋不强制开袋，故 openCart=false 时跳过
       if (openCart) session.setCartOpen(true)
     } finally {
       writeBusy.value = false

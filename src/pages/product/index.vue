@@ -1,15 +1,9 @@
-<script lang="ts">
-export default {
-  options: {
-    virtualHost: true,
-    styleIsolation: 'shared',
-  },
-}
-</script>
-
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import SoorakSheet from '@/components/soorak-sheet/soorak-sheet.vue'
+import { onLoad } from '@dcloudio/uni-app'
+import SoorakChrome from '@/components/soorak-chrome/soorak-chrome.vue'
+import SoorakButton from '@/components/soorak-button/soorak-button.vue'
+import SoorakImage from '@/components/soorak-image/soorak-image.vue'
 import { storeCanAcceptOrders } from '@/common/apis/storeApi'
 import { useCartStore } from '@/stores/cart'
 import { useCatalogStore } from '@/stores/catalog'
@@ -36,13 +30,16 @@ const session = useSessionStore()
 const catalog = useCatalogStore()
 const cart = useCartStore()
 
+/** 页面本地固定商品 id（18 位雪花 string），query 透传，不依赖 store 会话状态 */
+const localProductId = ref<string | null>(null)
+const notFound = ref(false)
+
 const product = computed(() => {
-  if (!session.productId) return null
-  return catalog.findProduct(session.productId)
+  if (!localProductId.value) return null
+  return catalog.findProduct(localProductId.value)
 })
 
 const isRetail = computed(() => product.value?.cat === 'retail')
-
 const hasApiOptions = computed(() => Boolean(product.value?.skus?.length || product.value?.optionGroups?.length))
 
 /** sku_id/option_id 是 18 位雪花大整数（string），全程 string 透传 */
@@ -73,22 +70,6 @@ watch(
     extras.value = []
     qty.value = 1
     storyOpen.value = false
-  },
-)
-
-/**
- * FIELD-GAP-006：菜单刷新后同商品的 skus 可能变化（旧 sku 被停用/删除），
- * 此时 product.id 不变，上面的 watch 不会触发，skuId 仍指向已失效的 sku_id，
- * 加购会把无效 sku_id 传给后端导致「规格不存在」。
- * 这里监听 sku 列表：当前选中的 sku 若已不在新列表，则自动重置为第一个有效 sku。
- */
-watch(
-  () => (product.value?.skus ?? []).map((s) => s.sku_id).join(','),
-  () => {
-    const current = product.value
-    if (!current) return
-    if (skuId.value != null && current.skus?.some((s) => s.sku_id === skuId.value)) return
-    skuId.value = current.skus?.[0]?.sku_id ?? null
   },
 )
 
@@ -139,8 +120,6 @@ const displayLineText = computed(() => {
   return formatMemberGoodsMoney(line, kind)
 })
 
-const sheetOpen = computed(() => product.value != null)
-const sheetTitle = computed(() => (isRetail.value ? '商品详情' : '选规格'))
 /** 是否可加购：休息/暂停接单（status!=1）时禁用，避免绕过入口直接加购 */
 const canAddToBag = computed(() => storeCanAcceptOrders(catalog.currentStore))
 /**
@@ -155,6 +134,8 @@ const addDrinkDisabledReason = computed(() => {
 })
 
 const showRitual = computed(() => Boolean(product.value?.desc || product.value?.tag))
+
+const navTitle = computed(() => (isRetail.value ? '商品详情' : '选规格'))
 
 function toggleOption(group: { select_type: number; is_required: number; values: { option_id: string }[] }, id: string) {
   const groupIds = new Set(group.values.map((item) => item.option_id))
@@ -230,18 +211,41 @@ async function addRetailToBag() {
 async function buyNow() {
   await add(true)
 }
+
+function goBack() {
+  uni.navigateBack({ fail() {} })
+}
+
+onLoad((query) => {
+  const id = query?.id
+  if (typeof id !== 'string' || !id) {
+    notFound.value = true
+    return
+  }
+  localProductId.value = id
+  void catalog.ensureLoaded().then(() => {
+    if (!catalog.findProduct(id)) notFound.value = true
+  })
+})
 </script>
 
 <template>
-  <SoorakSheet :open="sheetOpen" :title="sheetTitle" @close="session.closeProduct()">
-    <view v-if="product" class="ps">
-      <view class="ps__portrait" :class="{ 'ps__portrait--retail': isRetail }">
-        <image class="ps__img" :class="{ 'ps__img--retail': isRetail }" :src="product.img" mode="aspectFill" />
-        <text v-if="isRetail && product.tag" class="ps__tag">{{ product.tag }}</text>
-      </view>
+  <SoorakChrome :title="navTitle" show-back hide-tab-bar>
+    <view v-if="notFound" class="mp-empty">
+      <text class="t-caption">商品不存在或已下架</text>
+      <SoorakButton @click="goBack">返回</SoorakButton>
+    </view>
+    <view v-else-if="!product" class="mp-empty">
+      <text class="t-caption">加载中</text>
+    </view>
 
-      <!-- retail 展柜内容 -->
-      <view v-if="isRetail" class="ps__content">
+    <!-- retail 展柜内容 -->
+    <view v-else-if="isRetail" class="ps ps--retail">
+      <view class="ps__portrait">
+        <SoorakImage class="ps__img ps__img--retail" :src="product.img" mode="aspectFill" />
+        <text v-if="product.tag" class="ps__tag">{{ product.tag }}</text>
+      </view>
+      <view class="ps__content">
         <text class="ps__price">¥{{ displayUnitText }}</text>
         <text class="t-label">{{ product.en }}</text>
         <text class="t-title ps__name">{{ product.name }}</text>
@@ -264,9 +268,14 @@ async function buyNow() {
           <view class="ps__detail-mock" />
         </view>
       </view>
+    </view>
 
-      <!-- 饮品：保持改前结构 -->
-      <view v-else class="ps__content">
+    <!-- 饮品 -->
+    <view v-else class="ps">
+      <view class="ps__portrait">
+        <SoorakImage class="ps__img" :src="product.img" mode="aspectFill" />
+      </view>
+      <view class="ps__content">
         <text class="t-label">{{ product.en }}</text>
         <text class="t-title ps__name">{{ product.name }}</text>
         <text class="ps__scene">{{ product.scene }}</text>
@@ -366,23 +375,15 @@ async function buyNow() {
     </view>
 
     <template #footer>
-      <view
-        v-if="isRetail"
-        class="ps-cta ps-cta--retail"
-        style="width:100%;display:flex;flex-direction:row;align-items:center;box-sizing:border-box;"
-      >
+      <view v-if="product && isRetail" class="ps-cta ps-cta--retail">
         <view class="ps-bag" @click="session.setCartOpen(true)">
           <text class="ps-bag__icon">袋</text>
           <text class="ps-bag__label">购物袋</text>
         </view>
-        <view
-          class="ps-cta__actions"
-          style="flex:1;width:0;min-width:0;display:flex;flex-direction:row;align-items:center;"
-        >
+        <view class="ps-cta__actions">
           <view
             class="ps-cta__btn ps-cta__btn--secondary"
             :class="{ 'is-disabled': !canAddToBag }"
-            style="flex:1;width:0;min-width:0;"
             :hover-class="canAddToBag ? 'ps-cta__btn--active' : 'none'"
             @click="addRetailToBag"
           >
@@ -391,7 +392,6 @@ async function buyNow() {
           <view
             class="ps-cta__btn ps-cta__btn--primary"
             :class="{ 'is-disabled': !canAddToBag }"
-            style="flex:1;width:0;min-width:0;"
             :hover-class="canAddToBag ? 'ps-cta__btn--active-primary' : 'none'"
             @click="buyNow"
           >
@@ -399,8 +399,7 @@ async function buyNow() {
           </view>
         </view>
       </view>
-      <!-- 饮品专属全宽 CTA -->
-      <view v-else class="ps-cta ps-cta--drink" style="width:100%;">
+      <view v-else-if="product" class="ps-cta ps-cta--drink">
         <view
           class="ps-cta__drink-btn"
           :class="{ 'is-disabled': !canAddDrink }"
@@ -413,7 +412,7 @@ async function buyNow() {
         </view>
       </view>
     </template>
-  </SoorakSheet>
+  </SoorakChrome>
 </template>
 
 <style lang="scss" scoped>
@@ -423,12 +422,12 @@ async function buyNow() {
 
 .ps__img {
   width: 100%;
-  height: 360rpx;
+  height: 480rpx;
   display: block;
 }
 
 .ps__img--retail {
-  height: 440rpx;
+  height: 560rpx;
 }
 
 .ps__tag {
@@ -443,7 +442,9 @@ async function buyNow() {
 }
 
 .ps__content {
-  padding: 28rpx 32rpx 16rpx;
+  padding: 28rpx 32rpx;
+  /* 给底部固定 CTA 留白 */
+  padding-bottom: 200rpx;
 }
 
 .ps__price {
@@ -610,79 +611,8 @@ async function buyNow() {
   font-size: 32rpx;
 }
 
-.ps-cta--drink {
-  display: block;
-  width: 100%;
-}
-
-.ps-cta__drink-btn {
-  width: 100%;
-  box-sizing: border-box;
-  min-height: 96rpx;
-  padding: 0 32rpx;
-  border-radius: 8rpx;
-  background: $mp-moss;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.ps-cta__drink-btn.is-disabled {
-  background: $mp-stone;
-  pointer-events: none;
-}
-
-.ps-cta__drink-btn.is-disabled .ps-cta__drink-label {
-  color: $mp-text-3;
-}
-
-.ps-cta__drink-btn--active {
-  opacity: 0.92;
-  transform: scale(0.98);
-  background: $mp-moss-deep;
-}
-
-.ps-cta__drink-label {
-  max-width: 100%;
-  font-size: 34rpx;
-  font-weight: 500;
-  line-height: 1.2;
-  letter-spacing: 0.08em;
-  color: $mp-paper;
-  text-align: center;
-}
-
-.ps-bag__icon {
-  font-size: 28rpx;
-  line-height: 1;
-  letter-spacing: 0.06em;
-  color: $mp-text;
-}
-
-.ps-bag__label {
-  font-size: 18rpx;
-  letter-spacing: 0.04em;
-  color: $mp-text-2;
-}
-
-.ps-cta__label {
-  font-size: 30rpx;
-  font-weight: 500;
-  line-height: 1.2;
-  letter-spacing: 0.08em;
-  white-space: nowrap;
-  color: $mp-text;
-}
-
-.ps-cta__label--light {
-  color: $mp-paper;
-}
-</style>
-
-<!-- 非 scoped：footer 经 root-portal 挂载后，宽度布局必须用全局选择器才能稳定撑开 -->
-<style lang="scss">
+/* CTA（经 chrome footer slot 渲染，scoped 样式在页面内直接生效） */
 .ps-cta {
-  flex: 1;
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
@@ -696,6 +626,11 @@ async function buyNow() {
   box-sizing: border-box;
 }
 
+.ps-cta--drink {
+  display: block;
+  width: 100%;
+}
+
 .ps-bag {
   flex-shrink: 0;
   width: 88rpx;
@@ -704,6 +639,19 @@ async function buyNow() {
   align-items: center;
   justify-content: center;
   gap: 4rpx;
+}
+
+.ps-bag__icon {
+  font-size: 28rpx;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: $mp-text;
+}
+
+.ps-bag__label {
+  font-size: 18rpx;
+  letter-spacing: 0.04em;
+  color: $mp-text-2;
 }
 
 .ps-cta__actions {
@@ -763,5 +711,55 @@ async function buyNow() {
   opacity: 0.92;
   transform: scale(0.98);
   background: $mp-moss-deep;
+}
+
+.ps-cta__drink-btn {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 96rpx;
+  padding: 0 32rpx;
+  border-radius: 8rpx;
+  background: $mp-moss;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ps-cta__drink-btn.is-disabled {
+  background: $mp-stone;
+  pointer-events: none;
+}
+
+.ps-cta__drink-btn.is-disabled .ps-cta__drink-label {
+  color: $mp-text-3;
+}
+
+.ps-cta__drink-btn--active {
+  opacity: 0.92;
+  transform: scale(0.98);
+  background: $mp-moss-deep;
+}
+
+.ps-cta__drink-label {
+  max-width: 100%;
+  font-size: 34rpx;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  color: $mp-paper;
+  text-align: center;
+}
+
+.ps-cta__label {
+  font-size: 30rpx;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: $mp-text;
+}
+
+.ps-cta__label--light {
+  color: $mp-paper;
 }
 </style>

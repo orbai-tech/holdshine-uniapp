@@ -11,6 +11,7 @@ export default {
 import { computed, watch } from 'vue'
 import SoorakSheet from '@/components/soorak-sheet/soorak-sheet.vue'
 import SoorakButton from '@/components/soorak-button/soorak-button.vue'
+import SoorakImage from '@/components/soorak-image/soorak-image.vue'
 import type { FulfillmentMode } from '@/common/types/fulfillment'
 import { lineAmount, useCartStore } from '@/stores/cart'
 import { useCatalogStore } from '@/stores/catalog'
@@ -134,7 +135,7 @@ function badgeText(count: number) {
         <text class="cart-list__clear" @click="onClearCart">清空</text>
       </view>
       <view v-for="item in cart.remoteItems" :key="item.item_id" class="cart-row">
-        <image :src="itemImage(item.product_id)" mode="aspectFill" class="cart-row__img" />
+        <SoorakImage :src="itemImage(item.product_id)" mode="aspectFill" class="cart-row__img" />
         <view class="cart-row__body">
           <text class="cart-row__name">{{ item.product_name }}</text>
           <text class="cart-row__meta">{{ formatItemSpec(item) || '标准装' }}</text>
@@ -151,7 +152,7 @@ function badgeText(count: number) {
     </view>
     <view v-else class="cart-list">
       <view v-for="(item, idx) in cart.items" :key="`${item.product.id}-${idx}`" class="cart-row">
-        <image :src="item.product.img" mode="aspectFill" class="cart-row__img" />
+        <SoorakImage :src="item.product.img" mode="aspectFill" class="cart-row__img" />
         <view class="cart-row__body">
           <text class="cart-row__name">{{ item.product.name }}</text>
           <text class="cart-row__meta">

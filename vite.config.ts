@@ -5,6 +5,14 @@ import uni from '@dcloudio/vite-plugin-uni'
 /** UniApp 编译插件负责根据命令参数输出 H5 或对应小程序产物。 */
 export default defineConfig({
   plugins: [uni()],
+  esbuild: {
+    // 开发模式（真机调试）同样要降级，避免旧版微信 JSCore 无法解析 ?? /?.
+    target: 'es2018',
+  },
+  build: {
+    // 生产构建时继续降级，保持与开发模式一致。
+    target: 'es2018',
+  },
   resolve: {
     alias: { '@': path.resolve(__dirname, 'src') },
   },

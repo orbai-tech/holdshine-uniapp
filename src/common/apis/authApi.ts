@@ -1,4 +1,5 @@
 ﻿import { http } from '@/plugins/request'
+import { ensureApiHost } from '@/config/apiHost'
 import type {
   AuthUser,
   LoginResult,
@@ -11,15 +12,8 @@ import type {
 } from '@/common/types/auth'
 import { TOKEN_KEY } from '@/utils/authStorage'
 
-function apiBaseURL(): string {
-  let base = String(import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
-  // #ifdef MP-WEIXIN
-  // 兜底指向本地真实后端；更换后端地址时，优先改 VITE_API_BASE_URL，并同步此处的默认值
-  if (!/^https?:\/\//.test(base)) {
-    base = 'http://127.0.0.1:8000'
-  }
-  // #endif
-  return base
+async function apiBaseURL(): Promise<string> {
+  return (await ensureApiHost()).replace(/\/$/, '')
 }
 
 /** 文档 snake_case → 页面 AuthUser，只在本层映射一次。 */
@@ -95,11 +89,12 @@ export async function bindPhone(body: MpBindPhoneReq): Promise<AuthUser> {
  * POST /api/mp/customer/auth/avatar（multipart field=`file`）。
  * 成功返回 avatar_path + userinfo。
  */
-export function uploadAvatar(filePath: string): Promise<MpAvatarUploadRes> {
+export async function uploadAvatar(filePath: string): Promise<MpAvatarUploadRes> {
   const token = (uni.getStorageSync(TOKEN_KEY) as string) || ''
+  const base = await apiBaseURL()
   return new Promise((resolve, reject) => {
     uni.uploadFile({
-      url: `${apiBaseURL()}/api/mp/customer/auth/avatar`,
+      url: `${base}/api/mp/customer/auth/avatar`,
       filePath,
       name: 'file',
       header: token ? { Authorization: `Bearer ${token}` } : {},

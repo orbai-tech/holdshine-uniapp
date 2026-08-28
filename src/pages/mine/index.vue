@@ -9,6 +9,7 @@ import { useSessionStore } from '@/stores/session'
 import { toErrorMessage } from '@/utils/errorMessage'
 import { formatMemberNo } from '@/utils/memberLabel'
 import { resolveMediaUrl } from '@/utils/mediaUrl'
+import SoorakImage from '@/components/soorak-image/soorak-image.vue'
 import MemberSection from './components/member-section.vue'
 import { useMemberPack } from './useMemberPack'
 
@@ -250,7 +251,7 @@ async function onGetPhoneNumber(event: {
         <template v-if="session.loggedIn">
           <view class="member-hero__top">
             <view class="member-avatar" @click="onPickAvatar">
-              <image v-if="avatarUrl" :src="avatarUrl" mode="aspectFill" class="member-avatar__img" />
+              <SoorakImage v-if="avatarUrl" :src="avatarUrl" mode="aspectFill" class="member-avatar__img" />
               <text v-else class="member-avatar__initial">{{ avatarInitial }}</text>
             </view>
             <view class="member-hero__id">

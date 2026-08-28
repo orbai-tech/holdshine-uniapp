@@ -1,4 +1,5 @@
 import { requestInterceptor, responseErrorInterceptor, responseInterceptor } from './interceptors'
+import { ensureApiHost } from '@/config/apiHost'
 
 interface RequestOptions<TData extends UniApp.RequestOptions['data'] = UniApp.RequestOptions['data']> {
   url: string
@@ -8,23 +9,15 @@ interface RequestOptions<TData extends UniApp.RequestOptions['data'] = UniApp.Re
   showError?: boolean
 }
 
-let baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
-// #ifdef MP-WEIXIN
-// wx.request 只接受 http(s) 完整地址；相对路径 /api 会报 invalid url
-// 兜底指向本地真实后端；更换后端地址时，优先改 VITE_API_BASE_URL，并同步此处的默认值
-if (!/^https?:\/\//.test(baseURL)) {
-  baseURL = 'http://127.0.0.1:8000'
-}
-// #endif
-
-export { baseURL }
 const timeout = Number(import.meta.env.VITE_API_TIMEOUT) || 10_000
 
 /**
  * 跨端请求封装：使用 uni.request，避免浏览器专用 Axios 适配问题。
  * 页面只调用 common/apis 中的领域函数，不直接拼接接口地址。
+ * 微信小程序端会先经 apiHost 健康探测确定当前后端主机，后端换地址无需改码。
  */
-function execute<TResponse, TData extends UniApp.RequestOptions['data'] = UniApp.RequestOptions['data']>(options: RequestOptions<TData>): Promise<TResponse> {
+async function execute<TResponse, TData extends UniApp.RequestOptions['data'] = UniApp.RequestOptions['data']>(options: RequestOptions<TData>): Promise<TResponse> {
+  const baseURL = await ensureApiHost()
   return new Promise((resolve, reject) => {
     const requestOptions: UniApp.RequestOptions = {
       url: options.url.startsWith('http') ? options.url : `${baseURL}${options.url}`,

@@ -59,6 +59,14 @@
     {
       "path": "pages/login/index",
       "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
+    },
+    {
+      "path": "pages/product/index",
+      "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
+    },
+    {
+      "path": "pages/product/mall",
+      "style": { "navigationStyle": "custom", "backgroundColor": "#f7f4ee" }
     }
   ],
   "globalStyle": {
@@ -106,7 +114,9 @@
       { "name": "首页", "path": "pages/home/index" },
       { "name": "订单", "path": "pages/orders/index" },
       { "name": "选物", "path": "pages/select/index" },
-      { "name": "我的", "path": "pages/mine/index" }
+      { "name": "我的", "path": "pages/mine/index" },
+      { "name": "商品详情", "path": "pages/product/index" },
+      { "name": "礼品详情", "path": "pages/product/mall" }
     ]
   }
 }

@@ -55,7 +55,6 @@ export const useSessionStore = defineStore('session', () => {
   const ritualFilter = ref<RitualId | null>(null)
   /** 菜单分类 id：18 位雪花大整数，string 透传 */
   const categoryId = ref<string | null>(null)
-  const productId = ref<string | null>(null)
   const cartOpen = ref(false)
   const loginSheetMode = ref<'login'>('login')
   const suppressTabBar = ref(false)
@@ -89,12 +88,9 @@ export const useSessionStore = defineStore('session', () => {
   const coffeeDiscountRate = ref<string | null>(null)
   const mallDiscountRate = ref<string | null>(null)
 
-  const productOpen = computed(() => Boolean(productId.value))
   const loggedIn = computed(() => Boolean(token.value && user.value))
   /** 原生 tabBar 始终隐藏，页面内纯文字导航由 chrome 渲染 */
-  const tabBarVisible = computed(
-    () => !productOpen.value && !cartOpen.value && !suppressTabBar.value,
-  )
+  const tabBarVisible = computed(() => !cartOpen.value && !suppressTabBar.value)
 
   let profileChecked = false
   let loginWaiters: Array<(ok: boolean) => void> = []
@@ -113,7 +109,7 @@ export const useSessionStore = defineStore('session', () => {
     })
   }
 
-  watch([productId, cartOpen, suppressTabBar], hideNativeTabBar)
+  watch([cartOpen, suppressTabBar], hideNativeTabBar)
 
   function pageRouteOf(page: { route?: string } | undefined): string {
     return page?.route ? `/${page.route}` : ''
@@ -141,7 +137,6 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   function goTab(url: TabUrl) {
-    productId.value = null
     cartOpen.value = false
     suppressTabBar.value = false
     if (loginWaitPromise) {
@@ -235,7 +230,6 @@ export const useSessionStore = defineStore('session', () => {
 
   function openLoginPage(): Promise<boolean> {
     loginSheetMode.value = 'login'
-    productId.value = null
     cartOpen.value = false
     if (loginWaitPromise) {
       if (!isLoginPageOnStack()) navigateToLoginPage()
@@ -329,7 +323,6 @@ export const useSessionStore = defineStore('session', () => {
 
   /** 打开地址簿前先过登录门禁。 */
   async function openAddressBook() {
-    productId.value = null
     cartOpen.value = false
     const ok = await ensureLogin()
     if (!ok) return
@@ -340,7 +333,6 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   async function openAddressEditor(addressId?: string) {
-    productId.value = null
     cartOpen.value = false
     const ok = await ensureLogin()
     if (!ok) return
@@ -384,12 +376,22 @@ export const useSessionStore = defineStore('session', () => {
     categoryId.value = id
   }
 
-  function openProduct(id: string) {
-    productId.value = id
+  /** 打开咖啡/饮品商品详情独立页；18 位雪花 id 按 string 透传 */
+  function openProductPage(id: string) {
+    cartOpen.value = false
+    uni.navigateTo({
+      url: `/pages/product/index?id=${encodeURIComponent(id)}`,
+      fail() {},
+    })
   }
 
-  function closeProduct() {
-    productId.value = null
+  /** 打开选物礼品详情独立页 */
+  function openMallProductPage(id: string) {
+    cartOpen.value = false
+    uni.navigateTo({
+      url: `/pages/product/mall?id=${encodeURIComponent(id)}`,
+      fail() {},
+    })
   }
 
   function setCartOpen(open: boolean) {
@@ -397,7 +399,6 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   function goMenu(opts?: { replace?: boolean }) {
-    productId.value = null
     cartOpen.value = false
     suppressTabBar.value = false
     if (currentTabUrl() === MENU_URL) {
@@ -424,7 +425,6 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   function openStorePicker(mode?: FulfillmentMode | null) {
-    productId.value = null
     cartOpen.value = false
     const next = mode === undefined ? fulfillmentMode.value : mode
     const query = next ? `?mode=${next}` : ''
@@ -626,7 +626,6 @@ async function applyResolvedTable(res: {
   return {
     ritualFilter,
     categoryId,
-    productId,
     cartOpen,
     loginSheetMode,
     suppressTabBar,
@@ -634,7 +633,6 @@ async function applyResolvedTable(res: {
     user,
     authBusy,
     loggedIn,
-    productOpen,
     tabBarVisible,
     fulfillmentMode,
     pickupSubMode,
@@ -676,8 +674,8 @@ async function applyResolvedTable(res: {
     clearDeliveryAddress,
     hydrateDeliveryAddressFromApi,
     orderModeLabel,
-    openProduct,
-    closeProduct,
+    openProductPage,
+    openMallProductPage,
     setCartOpen,
     setSuppressTabBar,
     goMenu,

@@ -26,11 +26,6 @@ const navStyle = computed(() => ({
 }))
 
 function onBack() {
-  // product sheet 优先关层；子页栈返回用 navigateBack
-  if (session.productOpen) {
-    session.closeProduct()
-    return
-  }
   if (props.showBack) uni.navigateBack()
 }
 

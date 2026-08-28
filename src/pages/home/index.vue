@@ -5,6 +5,7 @@ import SoorakChrome from '@/components/soorak-chrome/soorak-chrome.vue'
 import SoorakButton from '@/components/soorak-button/soorak-button.vue'
 import SoorakSheet from '@/components/soorak-sheet/soorak-sheet.vue'
 import SoorakStoreDetailSheet from '@/components/soorak-store-detail-sheet/soorak-store-detail-sheet.vue'
+import SoorakImage from '@/components/soorak-image/soorak-image.vue'
 import { occupyTable, resolveTable } from '@/common/apis/tableApi'
 import { storeStatusLabel } from '@/common/apis/storeApi'
 import type { RitualId } from '@/common/types/catalog'
@@ -219,9 +220,9 @@ function onScanDraftInput(event: { detail?: { value?: string } }) {
             :key="item.id"
             class="mp-product-rail__item"
             :class="{ 'mp-product-rail__item--off': !canOrder }"
-            @click="canOrder ? session.openProduct(item.id) : toastResting()"
+            @click="canOrder ? session.openProductPage(item.id) : toastResting()"
           >
-            <image :src="item.img" mode="aspectFill" class="mp-product-rail__img" />
+            <SoorakImage :src="item.img" mode="aspectFill" class="mp-product-rail__img" />
             <text class="mp-product-rail__name">{{ item.name }}</text>
             <text class="mp-product-rail__scene">{{ item.scene }}</text>
             <text class="mp-product-rail__price">¥{{ item.price }}</text>

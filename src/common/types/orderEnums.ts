@@ -35,12 +35,17 @@ export const ORDER_STATUS = {
 
 export type OrderStatusCode = (typeof ORDER_STATUS)[keyof typeof ORDER_STATUS]
 
+/**
+ * 订单状态展示映射
+ * 状态码与后端保持一致，仅前端展示做映射：
+ * 1 待支付；2(原待接单)、3 制作中；4 待取餐；5、13 完成
+ */
 const ORDER_STATUS_LABELS: Record<number, string> = {
   [ORDER_STATUS.UNPAID]: '待支付',
-  [ORDER_STATUS.PENDING_ACCEPT]: '待接单',
+  [ORDER_STATUS.PENDING_ACCEPT]: '制作中',
   [ORDER_STATUS.MAKING]: '制作中',
   [ORDER_STATUS.READY]: '待取餐',
-  [ORDER_STATUS.DONE]: '已完成',
+  [ORDER_STATUS.DONE]: '完成',
   [ORDER_STATUS.CANCELLED]: '已取消',
   [ORDER_STATUS.REFUNDING]: '退款中',
   [ORDER_STATUS.REFUNDED]: '已退款',
@@ -48,6 +53,7 @@ const ORDER_STATUS_LABELS: Record<number, string> = {
   [ORDER_STATUS.PENDING_SHIP]: '待发货',
   [ORDER_STATUS.SHIPPED]: '已发货',
   [ORDER_STATUS.RECEIVED]: '已签收',
+  13: '完成',
 }
 
 /**
